@@ -40,6 +40,7 @@ def extract_data() -> None:
 
 
 def user_options_input() -> None:
+    user_options = ['abort', 'extract another']
     user_option = 'extract another'
     while user_option != 'abort':
         if user_option == 'abort':
@@ -106,7 +107,7 @@ def show_argument_options() -> None:
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        user_options = ['abort', 'extract another']
+
         user_options_input()
     else:
         execute_commandline()

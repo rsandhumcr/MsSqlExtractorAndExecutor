@@ -86,7 +86,7 @@ class SqlOperations:
         output_selects = []
         for relationship in relationships_data:
             id_value = str(relationship[0])
-            if id_value:
+            if id_value and id_value != 'None':
                 split_table = relationship[1].split('.')
                 if not id_value.isnumeric():
                     id_value = f"'{id_value}'"
