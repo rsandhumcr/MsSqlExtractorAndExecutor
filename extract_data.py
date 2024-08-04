@@ -99,7 +99,7 @@ def show_argument_options() -> None:
     print("e.g")
     print(" > py extract_data.py AdventureWorksLT2019  SalesLT.SalesOrderHeader 'SalesOrderID = 71774' insert True")
     print("Show table info")
-    print(" > extract_data.py <db name> <table name with schema>")
+    print(" > py extract_data.py <db name> <table name with schema>")
     print("e.g")
     print(" > py extract_data.py AdventureWorksLT2019  SalesLT.SalesOrderHeader")
     exit()
