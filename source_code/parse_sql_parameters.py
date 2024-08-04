@@ -47,7 +47,9 @@ class ParseSqlParameters:
         for prompt in prompt_data:
             prompt_value = prompt['prompt']
             if not prompt_value:
-                prompt_value = f"Enter value for {prompt['parameter']} ?"
+                prompt_value = f"Enter value for {prompt['parameter']} ({prompt['parameter_type']}) ?"
+            else:
+                prompt_value = prompt_value.replace('?', f"({prompt['parameter_type']}) ?")
             prompt_value = prompt_value.replace('-', '')
             response = input(prompt_value + ' ')
             if not response.isnumeric():
