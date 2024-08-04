@@ -44,6 +44,7 @@ class ParseSqlParameters:
 
     @staticmethod
     def prompt_user(prompt_data: list[dict[str, str]]) -> None:
+        print("You can enter the string NULL (uppercase) for a 'NULL' value.")
         for prompt in prompt_data:
             prompt_value = prompt['prompt']
             if not prompt_value:

@@ -115,12 +115,6 @@ class ScriptGenerator:
             self.handle_general_exceptions('create_update_statement', exc)
 
     @staticmethod
-    def is_value_null(value: any) -> str:
-        if value is None:
-            return 'NULL'
-        return str(value)
-
-    @staticmethod
     def has_table_columns_have_autoincrement(table_data: DatabaseOperations.TableRecords) -> bool:
         has_autoincrement = False
         for dataRow in table_data['columns']:
