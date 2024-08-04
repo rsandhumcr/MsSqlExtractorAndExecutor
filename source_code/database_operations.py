@@ -4,7 +4,7 @@ import sqlalchemy
 from sqlalchemy import text, create_engine
 from sqlalchemy.sql.base import ReadOnlyColumnCollection
 from sqlalchemy.sql.schema import Column, ForeignKey
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, URL
 from sqlalchemy.sql.type_api import TypeEngine
 from typing import Literal, Callable, Any
 
@@ -15,17 +15,52 @@ class DatabaseOperations:
     type TableMetadata = list[dict[str | int, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]]
     type TableMetadataItem = dict[str | int, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]
     type TableRecords = dict[str | int, list[any] | list[dict[str, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]]]
+    type ConnectionType = URL | str
 
     def __init__(self, master_database='master'):
         self.master_database = master_database
 
-    def get_connection(self, database_name: str = None) -> sqlalchemy.engine.Connection:
+    def get_connection_info(self, database_name: str = None) -> ConnectionType:
+
         if database_name is None:
             database_name = self.master_database
-        connection_string = f'mssql+pyodbc://./{database_name}?driver=SQL+Server+Native+Client+11.0'
-        engine: Engine = create_engine(connection_string, echo=False)
-        conn: sqlalchemy.engine.Connection = engine.connect()
-        return conn
+
+        is_connection_local = True
+
+        if is_connection_local:
+            # Local connection
+            connection_string_value = f'mssql+pyodbc://./{database_name}?driver=SQL+Server+Native+Client+11.0'
+            return connection_string_value
+
+        # Remote connection
+        connection_url = URL.create(
+            "mssql+pyodbc",
+            username="TestUser",
+            password="TestPassword",
+            host="127.0.0.1",
+            port=1433,
+            database=database_name,
+            query={
+                "driver": "SQL Server Native Client 11.0",
+                "Encrypt": "yes",
+                "TrustServerCertificate": "yes",
+            },
+        )
+        return connection_url
+
+
+    def get_connection_object(self, database_name) -> sqlalchemy.engine.Connection:
+        try:
+            connection_info = self.get_connection_info(database_name)
+            engine: Engine = create_engine(connection_info, echo=False)
+            conn: sqlalchemy.engine.Connection = engine.connect()
+            return conn
+        except Exception as exc:
+            print(f'DatabaseOperations Method : get_connection_object')
+            print('ex : ', exc)
+            print(f"Method 'DatabaseOperations.get_connection_info' contains connection string settings.")
+            exit()
+
 
     def get_database(self) -> list[str]:
         try:
@@ -84,7 +119,7 @@ class DatabaseOperations:
 
     def get_table_meta_data(self, database_name: str, schema_name: str, table_name: str) -> TableMetadata:
         try:
-            connection = self.get_connection(database_name)
+            connection = self.get_connection_object(database_name)
 
             meta_data = sqlalchemy.MetaData()
             table_data = sqlalchemy.Table(table_name, meta_data, schema=schema_name, autoload_with=connection)
@@ -128,7 +163,7 @@ class DatabaseOperations:
             if self.enable_logging:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            connection = self.get_connection(database_name)
+            connection = self.get_connection_object(database_name)
             connection.execute(text(sql_script))
             connection.commit()
             connection.close()
@@ -140,7 +175,7 @@ class DatabaseOperations:
             if self.enable_logging:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            connection = self.get_connection(database_name)
+            connection = self.get_connection_object(database_name)
             result_set = connection.execute(text(sql_script))
             data_row = []
             if result_set is not None:
