@@ -48,8 +48,7 @@ class DatabaseOperations:
         )
         return connection_url
 
-
-    def get_connection_object(self, database_name) -> sqlalchemy.engine.Connection:
+    def get_connection_object(self, database_name: str) -> sqlalchemy.engine.Connection:
         try:
             connection_info = self.get_connection_info(database_name)
             engine: Engine = create_engine(connection_info, echo=False)
