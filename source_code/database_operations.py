@@ -66,7 +66,7 @@ class DatabaseOperations:
             query = 'SELECT name FROM sys.sysdatabases ORDER BY name'
             result_set = self.execute_sql_script(None, query)
             database_names = []
-            for row in result_set:
+            for row in result_set['data']:
                 database_names.append(row[0])
             return database_names
         except Exception as exc:
@@ -80,7 +80,7 @@ class DatabaseOperations:
             result_set = self.execute_sql_script(database_name, query)
 
             schema_table_names = []
-            for row in result_set:
+            for row in result_set['data']:
                 schema_table_names.append(row[0])
 
             return schema_table_names
@@ -106,7 +106,7 @@ class DatabaseOperations:
             result_set = self.execute_sql_script(database_name, query)
 
             table_data_rows = []
-            for row in result_set:
+            for row in result_set['data']:
                 table_data_rows.append(row)
 
             return {
@@ -169,20 +169,23 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('execute_sql_script_no_data', exc)
 
-    def execute_sql_script(self, database_name: str | None, sql_script: str) -> list[any]:
+    def execute_sql_script(self, database_name: str | None, sql_script: str) -> dict[str, list[any]]:
         try:
             if self.enable_logging:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
             connection = self.get_connection_object(database_name)
             result_set = connection.execute(text(sql_script))
+            columns = []
+            for column in result_set._metadata.keys:
+                columns.append(column)
             data_row = []
             if result_set is not None:
                 for row in result_set:
                     data_row.append(row)
             connection.commit()
             connection.close()
-            return data_row
+            return {'data': data_row, 'columns': columns}
         except Exception as exc:
             self.handle_general_exceptions('execute_sql_script', exc)
 

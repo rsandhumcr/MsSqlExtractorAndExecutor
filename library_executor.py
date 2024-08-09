@@ -34,9 +34,22 @@ def execute_scripts() -> None:
             full_path = f"{new_path}\\{selected_file}"
             sql_script = file_operations.read_file(full_path)
             script_data = parse_sql_parameters.replace_parameters_with_prompts(sql_script)
+            row_no =0
             if script_data['return_results']:
                 data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
-                print(data_rows)
+                no_of_records = len(data_rows['data'])
+                if no_of_records == 1:
+                    print('---- start')
+                    for data_row in data_rows['data']:
+                        for colindex, column in enumerate(data_row):
+                            print(str(data_rows['columns'][colindex]) + '  :  ' + str(column))
+                    print('---- end')
+                else:
+                    for data_row in data_rows['data']:
+                        print('---- row ' + str(row_no))
+                        print(data_row)
+                        row_no +=1
+                print('No. of rows : ' + str(no_of_records))
             else:
                 databaseSelector.execute_sql_script_no_data(db_name, script_data['sql_script'])
 
