@@ -78,3 +78,10 @@ class UserOptions:
         print('ex : ', exception)
         tb = traceback.TracebackException.from_exception(exception)
         print(''.join(tb.stack.format()))
+
+    @staticmethod
+    def select_row_or_columns_result() -> bool:
+        is_columns = questionary.select(
+            "Select a columns or rows",
+            choices=['Columns', 'Rows']).ask()  # returns value of selection
+        return bool(is_columns == 'Columns')

@@ -201,6 +201,40 @@ class SqlOperations:
         return output_table_name
 
     @staticmethod
+    def show_table_results(script_name: str, show_columns: bool, data_rows: dict[str, list[any]]) -> str:
+        row_no = 0
+        no_of_records = len(data_rows['data'])
+        if no_of_records == 0:
+            return ''
+        data_output = ''
+        if show_columns:
+            max_len_column = 0
+            data_row = data_rows['data'][0]
+            for colindex, column in enumerate(data_row):
+                current_len = len(data_rows['columns'][colindex])
+                if max_len_column < current_len:
+                    max_len_column = current_len
+            data_output += f'---- start {script_name} \r\n'
+            for data_row in data_rows['data']:
+                data_output += '---- row ' + str(row_no)+ ' \r\n'
+                for colindex, column in enumerate(data_row):
+                    column_name = str(data_rows['columns'][colindex])
+                    extended_column_name = column_name.ljust(max_len_column, ' ')
+                    data_output += extended_column_name + '  :  ' + str(column) + ' \r\n'
+                row_no += 1
+            data_output += f'---- end {script_name}  \r\n'
+        else:
+            data_output += 'Columns \r\n'
+            data_output += str(data_rows['columns']) + ' \r\n'
+            data_output += 'Rows \r\n'
+            for data_row in data_rows['data']:
+                data_output += '---- row ' + str(row_no) + ' \r\n'
+                data_output += str(data_row) + ' \r\n'
+                row_no += 1
+        data_output += 'No. of rows : ' + str(no_of_records) + ' \r\n'
+        return data_output
+
+    @staticmethod
     def handle_general_exceptions(method_name: str, exception: Exception):
         print(f'SqlOperations Method : {method_name}')
         print('ex : ', exception)
