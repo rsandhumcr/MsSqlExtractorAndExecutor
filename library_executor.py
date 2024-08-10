@@ -35,14 +35,31 @@ def execute_scripts() -> None:
             sql_script = file_operations.read_file(full_path)
             script_data = parse_sql_parameters.replace_parameters_with_prompts(sql_script)
             if script_data['return_results']:
-                data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
-                no_of_rows = len(data_rows['data'])
-                print(f'You have {no_of_rows} row/s')
+                #data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
+                data_rows = databaseSelector.execute_sql_script_raw_connection(db_name, script_data['sql_script'])
+                no_of_result_sets = len(data_rows)
+                no_of_rows = len(data_rows[0]['data'])
+                if no_of_result_sets == 1 and no_of_result_sets == 1:
+                    print(f'You have {no_of_rows} row/s')
+                else:
+                    for result_index, data_row in enumerate(data_rows):
+                        no_of_rows = len(data_rows[result_index]['data'])
+                        row_label = 'rows'
+                        if no_of_rows == 1:
+                            row_label = 'row '
+                        print(f'You have {no_of_rows} {row_label} in result set {result_index + 1}')
+
                 is_columns = True
-                if no_of_rows > 1:
+                if no_of_rows > 1 or no_of_result_sets > 1:
                     is_columns = user_options.select_row_or_columns_result()
-                data_output_str = SqlOperations.show_table_results(selected_file,is_columns, data_rows)
-                print(data_output_str)
+                result_set_count =0;
+                for data_row in data_rows:
+                    result_set_count +=1
+                    if(no_of_result_sets > 1):
+                        print(f"Result set {result_set_count}")
+                    data_output_str = SqlOperations.show_table_results(result_set_count,selected_file,
+                                                                       is_columns, data_row)
+                    print(data_output_str)
             else:
                 databaseSelector.execute_sql_script_no_data(db_name, script_data['sql_script'])
 

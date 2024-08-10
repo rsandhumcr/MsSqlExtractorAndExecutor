@@ -201,8 +201,8 @@ class SqlOperations:
         return output_table_name
 
     @staticmethod
-    def show_table_results(script_name: str, show_columns: bool, data_rows: dict[str, list[any]]) -> str:
-        row_no = 0
+    def show_table_results(result_set_index: int,script_name: str, show_columns: bool, data_rows: dict[str, list[any]]) -> str:
+        row_no = 1
         no_of_records = len(data_rows['data'])
         if no_of_records == 0:
             return ''
@@ -216,7 +216,7 @@ class SqlOperations:
                     max_len_column = current_len
             data_output += f'---- start {script_name} \r\n'
             for data_row in data_rows['data']:
-                data_output += '---- row ' + str(row_no)+ ' \r\n'
+                data_output += '---- result set ' + str(result_set_index) + ' row ' + str(row_no)+ ' \r\n'
                 for colindex, column in enumerate(data_row):
                     column_name = str(data_rows['columns'][colindex])
                     extended_column_name = column_name.ljust(max_len_column, ' ')
@@ -228,7 +228,7 @@ class SqlOperations:
             data_output += str(data_rows['columns']) + ' \r\n'
             data_output += 'Rows \r\n'
             for data_row in data_rows['data']:
-                data_output += '---- row ' + str(row_no) + ' \r\n'
+                data_output += '---- result set ' + str(result_set_index) + ' row ' + str(row_no)+ ' \r\n'
                 data_output += str(data_row) + ' \r\n'
                 row_no += 1
         data_output += 'No. of rows : ' + str(no_of_records) + ' \r\n'

@@ -1,7 +1,8 @@
 import traceback
 import logging
 import sqlalchemy
-from sqlalchemy import text, create_engine
+from sqlalchemy import text, create_engine, PoolProxiedConnection, Sequence
+from sqlalchemy.engine.interfaces import DBAPICursor
 from sqlalchemy.sql.base import ReadOnlyColumnCollection
 from sqlalchemy.sql.schema import Column, ForeignKey
 from sqlalchemy.engine import Engine, URL
@@ -54,6 +55,17 @@ class DatabaseOperations:
             engine: Engine = create_engine(connection_info, echo=False)
             conn: sqlalchemy.engine.Connection = engine.connect()
             return conn
+        except Exception as exc:
+            print(f'DatabaseOperations Method : get_connection_object')
+            print('ex : ', exc)
+            print(f"Method 'DatabaseOperations.get_connection_info' contains connection string settings.")
+            exit()
+
+    def get_raw_connection_object(self, database_name: str) -> PoolProxiedConnection:
+        try:
+            connection_info = self.get_connection_info(database_name)
+            raw_connection: PoolProxiedConnection = create_engine(connection_info, echo=False).raw_connection()
+            return raw_connection
         except Exception as exc:
             print(f'DatabaseOperations Method : get_connection_object')
             print('ex : ', exc)
@@ -175,6 +187,7 @@ class DatabaseOperations:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
             connection = self.get_connection_object(database_name)
+
             result_set = connection.execute(text(sql_script))
             columns = []
             for column in result_set._metadata.keys:
@@ -183,11 +196,49 @@ class DatabaseOperations:
             if result_set is not None:
                 for row in result_set:
                     data_row.append(row)
+
             connection.commit()
             connection.close()
             return {'data': data_row, 'columns': columns}
         except Exception as exc:
             self.handle_general_exceptions('execute_sql_script', exc)
+
+    def execute_sql_script_raw_connection(self, database_name: str | None, sql_script: str) -> list[dict[str, list[any]]]:
+        result = []
+        try:
+            if self.enable_logging:
+                logging.basicConfig()
+                logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+            raw_connection = self.get_raw_connection_object(database_name)
+
+            cursor = raw_connection.cursor()
+            cursor.execute(sql_script)
+            result_set = cursor.fetchall()
+
+            data_first = self.extract_result_data(result_set, cursor)
+            result.append(data_first)
+            while cursor.nextset():
+                result_set = cursor.fetchall()
+                data_second = self.extract_result_data(result_set, cursor)
+                result.append(data_second)
+
+            raw_connection.commit()
+            raw_connection.close()
+            return result
+
+        except Exception as exc:
+            self.handle_general_exceptions('execute_sql_script', exc)
+
+    @staticmethod
+    def extract_result_data(result_set: Sequence , cursor: DBAPICursor) -> dict[str, list[any]]:
+        columns = []
+        for column in cursor.description:
+            columns.append(column[0])
+        data_row = []
+        if result_set is not None:
+            for row in result_set:
+                data_row.append(row)
+        return {'data': data_row, 'columns': columns}
 
     @staticmethod
     def handle_general_exceptions(method_name: str, exception: Exception) -> None:

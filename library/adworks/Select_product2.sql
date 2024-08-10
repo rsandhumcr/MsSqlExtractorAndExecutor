@@ -1,0 +1,66 @@
+--- parameters start
+
+--- parameters end
+--- with results
+
+DECLARE @ProductId INT = 680; --- Enter product Id ?
+
+SELECT TOP (1000) [ProductID]
+      ,[Name]
+      ,[ProductNumber]
+      ,[Color]
+      ,[StandardCost]
+      ,[ListPrice]
+      ,[Size]
+      ,[Weight]
+      ,[ProductCategoryID]
+      ,[ProductModelID]
+      ,[SellStartDate]
+      ,[SellEndDate]
+      ,[DiscontinuedDate]
+      ,[ThumbNailPhoto]
+      ,[ThumbnailPhotoFileName]
+      ,[rowguid]
+      ,[ModifiedDate]
+  FROM [SalesLT].[Product]
+  WHERE [ProductID] = 680;
+
+SELECT TOP (1000) [ProductID]
+      ,[Name]
+      ,[ProductNumber]
+      ,[Color]
+      ,[StandardCost]
+      ,[ListPrice]
+      ,[Size]
+      ,[Weight]
+      ,[ProductCategoryID]
+      ,[ProductModelID]
+      ,[SellStartDate]
+      ,[SellEndDate]
+      ,[DiscontinuedDate]
+      ,[ThumbNailPhoto]
+      ,[ThumbnailPhotoFileName]
+      ,[rowguid]
+      ,[ModifiedDate]
+  FROM [SalesLT].[Product]
+  WHERE [ProductID] = 714;
+
+SELECT TOP (1000) [ProductID]
+      ,[Name]
+      ,[ProductNumber]
+      ,[Color]
+      ,[StandardCost]
+      ,[ListPrice]
+      ,[Size]
+      ,[Weight]
+      ,[ProductCategoryID]
+      ,[ProductModelID]
+      ,[SellStartDate]
+      ,[SellEndDate]
+      ,[DiscontinuedDate]
+      ,[ThumbNailPhoto]
+      ,[ThumbnailPhotoFileName]
+      ,[rowguid]
+      ,[ModifiedDate]
+  FROM [SalesLT].[Product]
+  WHERE [ProductCategoryID] = 9;
