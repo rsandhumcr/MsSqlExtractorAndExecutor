@@ -214,24 +214,24 @@ class SqlOperations:
                 current_len = len(data_rows['columns'][colindex])
                 if max_len_column < current_len:
                     max_len_column = current_len
-            data_output += f'---- start {script_name} \r\n'
+            data_output += f'---- Start {script_name} \r\n'
             for data_row in data_rows['data']:
-                data_output += '---- result set ' + str(result_set_index) + ' row ' + str(row_no)+ ' \r\n'
+                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no)+ ' \r\n'
                 for colindex, column in enumerate(data_row):
                     column_name = str(data_rows['columns'][colindex])
                     extended_column_name = column_name.ljust(max_len_column, ' ')
                     data_output += extended_column_name + '  :  ' + str(column) + ' \r\n'
                 row_no += 1
-            data_output += f'---- end {script_name}  \r\n'
+            data_output += f'---- End {script_name}  \r\n'
         else:
             data_output += 'Columns \r\n'
             data_output += str(data_rows['columns']) + ' \r\n'
             data_output += 'Rows \r\n'
             for data_row in data_rows['data']:
-                data_output += '---- result set ' + str(result_set_index) + ' row ' + str(row_no)+ ' \r\n'
+                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no)+ ' \r\n'
                 data_output += str(data_row) + ' \r\n'
                 row_no += 1
-        data_output += 'No. of rows : ' + str(no_of_records) + ' \r\n'
+        data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'
         return data_output
 
     @staticmethod
