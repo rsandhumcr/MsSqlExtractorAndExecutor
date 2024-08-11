@@ -35,7 +35,7 @@ def execute_scripts() -> None:
             full_path = f"{new_path}\\{selected_file}"
             sql_script = file_operations.read_file(full_path)
             script_data = parse_sql_parameters.replace_parameters_with_prompts(sql_script)
-            if script_data['sql_script']:
+            if script_data['return_results']:
                 # data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
                 data_rows = databaseSelector.execute_sql_script_raw_connection(db_name, script_data['sql_script'])
                 no_of_result_sets = len(data_rows)
