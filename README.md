@@ -85,4 +85,4 @@ Column mode will show the column name and python type on the same line.
 
 Row mode will show the list collection of the python data structor, which saves space.
 
-You can select the output by including '--- with columns' for columns and '--- with rows' for rows. 
+You can select the output by including '--- with results columns' for columns and '--- with results rows' for rows. 

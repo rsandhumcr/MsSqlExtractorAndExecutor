@@ -89,10 +89,10 @@ class ParseSqlParameters:
         return self.search_script_for_text(sql_script_input, '--- with results')
 
     def check_for_columns_results_marker(self, sql_script_input: str) -> bool:
-        return self.search_script_for_text(sql_script_input, '--- with columns')
+        return self.search_script_for_text(sql_script_input, '--- with results columns')
 
     def check_for_rows_results_marker(self, sql_script_input: str) -> bool:
-        return self.search_script_for_text(sql_script_input, '--- with rows')
+        return self.search_script_for_text(sql_script_input, '--- with results rows')
 
     @staticmethod
     def search_script_for_text(sql_script_input: str, search_text: str) -> bool:
