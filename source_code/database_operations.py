@@ -213,15 +213,16 @@ class DatabaseOperations:
 
             cursor = raw_connection.cursor()
             cursor.execute(sql_script)
-            result_set = cursor.fetchall()
 
-            data_first = self.extract_result_data(result_set, cursor)
-            result.append(data_first)
-            while cursor.nextset():
+            if cursor.description is not None:
                 result_set = cursor.fetchall()
-                data_second = self.extract_result_data(result_set, cursor)
-                result.append(data_second)
-
+                data_first = self.extract_result_data(result_set, cursor)
+                result.append(data_first)
+                while cursor.nextset():
+                    result_set = cursor.fetchall()
+                    data_second = self.extract_result_data(result_set, cursor)
+                    result.append(data_second)
+                    
             raw_connection.commit()
             raw_connection.close()
             return result

@@ -38,6 +38,9 @@ def execute_scripts() -> None:
             if script_data['return_results']:
                 # data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
                 data_rows = databaseSelector.execute_sql_script_raw_connection(db_name, script_data['sql_script'])
+                if len(data_rows) == 0:
+                    print('No Data returned')
+                    return
                 no_of_result_sets = len(data_rows)
                 no_of_rows = len(data_rows[0]['data'])
                 if no_of_result_sets == 1 and no_of_result_sets == 1:
