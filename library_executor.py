@@ -11,6 +11,7 @@ parse_sql_parameters = ParseSqlParameters()
 user_options = UserOptions()
 SqlOperations = SqlOperations()
 
+
 def execute_scripts() -> None:
     db_name = user_options.get_database_options()
     selected_file = 'initial'
@@ -52,17 +53,17 @@ def execute_scripts() -> None:
                         print(f'    {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}')
 
                 is_columns = True
-                if script_data['result_in_columns'] == None:
+                if script_data['result_in_columns'] is None:
                     if no_of_rows > 1 or no_of_result_sets > 1:
                         is_columns = user_options.select_row_or_columns_result()
                 else:
                     is_columns = script_data['result_in_columns']
-                result_set_count =0;
+                result_set_count = 0
                 for data_row in data_rows:
-                    result_set_count +=1
+                    result_set_count += 1
                     if no_of_result_sets > 1:
                         print(f"Result set {result_set_count}")
-                    data_output_str = SqlOperations.show_table_results(result_set_count,selected_file,
+                    data_output_str = SqlOperations.show_table_results(result_set_count, selected_file,
                                                                        is_columns, data_row)
                     print(data_output_str)
             else:

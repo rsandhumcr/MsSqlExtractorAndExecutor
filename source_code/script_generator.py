@@ -4,7 +4,8 @@ from source_code.database_operations import DatabaseOperations
 
 
 def get_current_timestamp() -> str:
-    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
+    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n\r\n"
+
 
 class ScriptGenerator:
 

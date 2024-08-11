@@ -206,7 +206,7 @@ class SqlOperations:
         return output_table_name
 
     @staticmethod
-    def show_table_results(result_set_index: int,script_name: str, show_columns: bool, data_rows: dict[str, list[any]]) -> str:
+    def show_table_results(result_set_index: int, script_name: str, show_columns: bool, data_rows: dict[str, list[any]]) -> str:
         row_no = 1
         no_of_records = len(data_rows['data'])
         if no_of_records == 0:
@@ -221,13 +221,13 @@ class SqlOperations:
                     max_len_column = current_len
 
             max_len_type = 0
-            for typeindex, type in enumerate(data_row):
-                current_len = len(data_rows['types'][typeindex])
+            for type_index, type_name in enumerate(data_row):
+                current_len = len(data_rows['types'][type_index])
                 if max_len_type < current_len:
                     max_len_type = current_len
             data_output += f'---- Start {script_name} \r\n'
             for data_row in data_rows['data']:
-                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no)+ ' \r\n'
+                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
                 for colindex, column in enumerate(data_row):
                     column_name = str(data_rows['columns'][colindex])
                     extended_column_name = column_name.ljust(max_len_column, ' ')
@@ -242,7 +242,7 @@ class SqlOperations:
             data_output += str(data_rows['types']) + ' \r\n'
             data_output += 'Rows \r\n'
             for data_row in data_rows['data']:
-                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no)+ ' \r\n'
+                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
                 data_output += str(data_row) + ' \r\n'
                 row_no += 1
         data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'

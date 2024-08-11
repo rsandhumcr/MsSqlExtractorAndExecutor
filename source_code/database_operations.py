@@ -230,7 +230,7 @@ class DatabaseOperations:
             self.handle_general_exceptions('execute_sql_script_raw_connection', exc)
 
     @staticmethod
-    def extract_result_data(result_set: Sequence , cursor: DBAPICursor) -> dict[str, list[any]]:
+    def extract_result_data(result_set: Sequence, cursor: DBAPICursor) -> dict[str, list[any]]:
         columns = []
         for column in cursor.description:
             columns.append(column[0])
