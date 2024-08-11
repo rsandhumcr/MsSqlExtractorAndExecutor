@@ -227,7 +227,7 @@ class DatabaseOperations:
             return result
 
         except Exception as exc:
-            self.handle_general_exceptions('execute_sql_script', exc)
+            self.handle_general_exceptions('execute_sql_script_raw_connection', exc)
 
     @staticmethod
     def extract_result_data(result_set: Sequence , cursor: DBAPICursor) -> dict[str, list[any]]:
