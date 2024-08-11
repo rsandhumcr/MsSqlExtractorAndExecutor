@@ -42,13 +42,14 @@ def execute_scripts() -> None:
                 if no_of_result_sets == 1 and no_of_result_sets == 1:
                     print(f'You have {no_of_rows} row/s')
                 else:
+                    print(f'You have:')
                     for result_index, data_row in enumerate(data_rows):
                         no_of_rows = len(data_rows[result_index]['data'])
                         no_of_columns = len(data_rows[result_index]['columns'])
                         row_label = 'rows'
                         if no_of_rows == 1:
                             row_label = 'row '
-                        print(f'You have {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}')
+                        print(f'    {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}')
 
                 is_columns = True
                 if no_of_rows > 1 or no_of_result_sets > 1:
