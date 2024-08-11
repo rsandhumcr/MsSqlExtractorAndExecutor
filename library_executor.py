@@ -34,8 +34,8 @@ def execute_scripts() -> None:
             full_path = f"{new_path}\\{selected_file}"
             sql_script = file_operations.read_file(full_path)
             script_data = parse_sql_parameters.replace_parameters_with_prompts(sql_script)
-            if script_data['return_results']:
-                #data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
+            if script_data['sql_script']:
+                # data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
                 data_rows = databaseSelector.execute_sql_script_raw_connection(db_name, script_data['sql_script'])
                 no_of_result_sets = len(data_rows)
                 no_of_rows = len(data_rows[0]['data'])
@@ -44,10 +44,11 @@ def execute_scripts() -> None:
                 else:
                     for result_index, data_row in enumerate(data_rows):
                         no_of_rows = len(data_rows[result_index]['data'])
+                        no_of_columns = len(data_rows[result_index]['columns'])
                         row_label = 'rows'
                         if no_of_rows == 1:
                             row_label = 'row '
-                        print(f'You have {no_of_rows} {row_label} in result set {result_index + 1}')
+                        print(f'You have {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}')
 
                 is_columns = True
                 if no_of_rows > 1 or no_of_result_sets > 1:
