@@ -77,3 +77,12 @@ DECLARE @Description VARCHAR(30) = &lt;value&gt;; --- Enter description ?
 Note, that after the DECLARE statements, the remark section (after the '---') will be used to create the prompt response to the user, but this is optional.
 
 If you require the output of the script then you must include '--- with results' in the script on a seperate line and the output will be printed to the console.
+Please include a question mark at the end of the prompt '?' for parsing of the parameter type.
+
+The output is show in two modes, columns and rows.
+
+Column mode will show the column name and python type on the same line.
+
+Row mode will show the list collection of the python data structor, which saves space.
+
+You can select the output by including '--- with columns' for columns and '--- with rows' for rows. 
