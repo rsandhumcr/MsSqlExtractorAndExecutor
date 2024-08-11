@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy import ForeignKey
 from tabulate import tabulate
 import traceback
@@ -8,6 +9,10 @@ from source_code.database_operations import DatabaseOperations
 file_operations = FileOperations()
 databaseSelector = DatabaseOperations()
 script_generator = ScriptGenerator()
+
+
+def get_current_timestamp() -> str:
+    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
 
 
 class SqlOperations:
@@ -241,6 +246,7 @@ class SqlOperations:
                 data_output += str(data_row) + ' \r\n'
                 row_no += 1
         data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'
+        data_output += get_current_timestamp()
         return data_output
 
     @staticmethod

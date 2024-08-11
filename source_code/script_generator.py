@@ -1,6 +1,9 @@
+from datetime import datetime
 import traceback
 from source_code.database_operations import DatabaseOperations
 
+def get_current_timestamp() -> str:
+    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
 
 class ScriptGenerator:
 
@@ -54,6 +57,7 @@ class ScriptGenerator:
             if show_identity_statement:
                 output_sql += f'   SET IDENTITY_INSERT {table_name} OFF; \n'
             output_sql += f' END  \n\n'
+            output_sql += get_current_timestamp()
             return output_sql
         except Exception as exc:
             self.handle_general_exceptions('create_insert_statement', exc)
@@ -110,6 +114,7 @@ class ScriptGenerator:
                         where_text += f"{column} = {value}"
                 output_sql += f'    WHERE {where_text};\n'
             output_sql += f'END  \n\n'
+            output_sql += get_current_timestamp()
             return output_sql
         except Exception as exc:
             self.handle_general_exceptions('create_update_statement', exc)
