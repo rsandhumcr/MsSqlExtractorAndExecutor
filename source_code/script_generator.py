@@ -2,6 +2,7 @@ from datetime import datetime
 import traceback
 from source_code.database_operations import DatabaseOperations
 
+
 def get_current_timestamp() -> str:
     return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
 

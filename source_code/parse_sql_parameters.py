@@ -77,11 +77,26 @@ class ParseSqlParameters:
             self.prompt_user(prompt_data)
             adjusted_sql = self.replace_parameter_values(prompt_data, sql_script_input)
         with_return_results = self.check_for_return_results_marker(sql_script_input)
-        return {'sql_script': adjusted_sql, 'return_results': with_return_results}
+        set_result_types = None
+        with_columns = self.check_for_columns_results_marker(sql_script_input)
+        with_rows = self.check_for_rows_results_marker(sql_script_input)
+        if with_columns:
+            set_result_types = True
+        if with_rows:
+            set_result_types = False
+        return {'sql_script': adjusted_sql, 'return_results': with_return_results, 'result_in_columns': set_result_types}
+
+    def check_for_return_results_marker(self,sql_script_input: str) -> bool:
+        return self.search_script_for_text(sql_script_input, '--- with results')
+
+    def check_for_columns_results_marker(self,sql_script_input: str) -> bool:
+        return self.search_script_for_text(sql_script_input, '--- with columns')
+    def check_for_rows_results_marker(self,sql_script_input: str) -> bool:
+        return self.search_script_for_text(sql_script_input, '--- with rows')
 
     @staticmethod
-    def check_for_return_results_marker(sql_script_input: str) -> bool:
-        index_with_result = sql_script_input.find('--- with results')
+    def search_script_for_text(sql_script_input: str, search_text: str) -> bool:
+        index_with_result = sql_script_input.find(search_text)
         if index_with_result > -1:
             return True
         return False

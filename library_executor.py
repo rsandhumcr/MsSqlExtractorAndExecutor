@@ -52,8 +52,11 @@ def execute_scripts() -> None:
                         print(f'    {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}')
 
                 is_columns = True
-                if no_of_rows > 1 or no_of_result_sets > 1:
-                    is_columns = user_options.select_row_or_columns_result()
+                if script_data['result_in_columns'] == None:
+                    if no_of_rows > 1 or no_of_result_sets > 1:
+                        is_columns = user_options.select_row_or_columns_result()
+                else:
+                    is_columns = script_data['result_in_columns']
                 result_set_count =0;
                 for data_row in data_rows:
                     result_set_count +=1
