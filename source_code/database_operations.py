@@ -234,11 +234,14 @@ class DatabaseOperations:
         columns = []
         for column in cursor.description:
             columns.append(column[0])
+        types = []
+        for column in cursor.description:
+            types.append(column[1].__name__)
         data_row = []
         if result_set is not None:
             for row in result_set:
                 data_row.append(row)
-        return {'data': data_row, 'columns': columns}
+        return {'data': data_row, 'columns': columns, 'types': types}
 
     @staticmethod
     def handle_general_exceptions(method_name: str, exception: Exception) -> None:

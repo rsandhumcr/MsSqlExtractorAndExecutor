@@ -56,7 +56,7 @@ def execute_scripts() -> None:
                 result_set_count =0;
                 for data_row in data_rows:
                     result_set_count +=1
-                    if(no_of_result_sets > 1):
+                    if no_of_result_sets > 1:
                         print(f"Result set {result_set_count}")
                     data_output_str = SqlOperations.show_table_results(result_set_count,selected_file,
                                                                        is_columns, data_row)
