@@ -1,3 +1,4 @@
+from datetime import datetime
 from source_code.database_operations import DatabaseOperations
 from source_code.file_operations import FileOperations
 from source_code.parse_sql_parameters import ParseSqlParameters
@@ -10,6 +11,10 @@ file_operations = FileOperations()
 parse_sql_parameters = ParseSqlParameters()
 user_options = UserOptions()
 SqlOperations = SqlOperations()
+
+
+def get_current_timestamp() -> str:
+    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
 
 
 def execute_scripts() -> None:
@@ -51,7 +56,7 @@ def execute_scripts() -> None:
                             row_label = 'rows'
                             if no_of_rows == 1:
                                 row_label = 'row '
-                            print(f'    {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}')
+                            print(f'   {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}')
 
                     is_columns = True
                     if script_data['result_in_columns'] is None:
@@ -60,13 +65,15 @@ def execute_scripts() -> None:
                     else:
                         is_columns = script_data['result_in_columns']
                     result_set_count = 0
+                    show_headers = not script_data['no_headers']
                     for data_row in data_rows:
                         result_set_count += 1
                         if no_of_result_sets > 1:
                             print(f"Result set {result_set_count}")
                         data_output_str = SqlOperations.show_table_results(result_set_count, selected_file,
-                                                                           is_columns, data_row)
+                                                                           is_columns, data_row, show_headers)
                         print(data_output_str)
+                    print(get_current_timestamp())
                 else:
                     print('No Data Returned')
             else:

@@ -1,4 +1,3 @@
-from datetime import datetime
 from sqlalchemy import ForeignKey
 from tabulate import tabulate
 import traceback
@@ -9,10 +8,6 @@ from source_code.database_operations import DatabaseOperations
 file_operations = FileOperations()
 databaseSelector = DatabaseOperations()
 script_generator = ScriptGenerator()
-
-
-def get_current_timestamp() -> str:
-    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
 
 
 class SqlOperations:
@@ -206,7 +201,8 @@ class SqlOperations:
         return output_table_name
 
     @staticmethod
-    def show_table_results(result_set_index: int, script_name: str, show_columns: bool, data_rows: dict[str, list[any]]) -> str:
+    def show_table_results(result_set_index: int, script_name: str, show_columns: bool,
+                           data_rows: dict[str, list[any]], show_headers) -> str:
         row_no = 1
         no_of_records = len(data_rows['data'])
         if no_of_records == 0:
@@ -237,16 +233,17 @@ class SqlOperations:
                 row_no += 1
             data_output += f'---- End {script_name}  \r\n'
         else:
-            data_output += 'Columns \r\n'
-            data_output += str(data_rows['columns']) + ' \r\n'
-            data_output += str(data_rows['types']) + ' \r\n'
+            if show_headers:
+                data_output += 'Columns \r\n'
+                data_output += str(data_rows['columns']) + ' \r\n'
+                data_output += str(data_rows['types']) + ' \r\n'
             data_output += 'Rows \r\n'
             for data_row in data_rows['data']:
-                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
+                if show_headers:
+                    data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
                 data_output += str(data_row) + ' \r\n'
                 row_no += 1
         data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'
-        data_output += get_current_timestamp()
         return data_output
 
     @staticmethod
