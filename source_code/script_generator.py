@@ -22,7 +22,7 @@ class ScriptGenerator:
             if show_identity_statement:
                 output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
             output_sql += f'--- INSERT INTO   [{database_name}].{table_name} (\n '
-            output_sql += f'   INSERT INTO   {table_name} \n      ('
+            output_sql += f'   INSERT INTO   {table_name} (\n '
             loop_break_index = 5
             loop_counter = 0
 
@@ -81,12 +81,13 @@ class ScriptGenerator:
             output_sql = f' ---   {query} \n'
             output_sql += f'IF EXISTS( {query} ) \n'
             output_sql += f'BEGIN  \n\n'
-            output_sql += f'--- UPDATE [{database_name}].{table_name} (\n'
 
             for row_data in table_data['data']:
                 loop_break_index = 5
                 loop_counter = 0
-                output_sql += f'   UPDATE {table_name} \n    SET '
+                output_sql += f'--- UPDATE [{database_name}].{table_name} \n'
+                output_sql += f'   UPDATE {table_name} \n'
+                output_sql += '    SET '
                 column_text = ''
 
                 for loop_columns in range(0, number_of_columns):
