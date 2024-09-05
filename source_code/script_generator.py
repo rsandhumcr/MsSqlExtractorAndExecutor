@@ -148,9 +148,9 @@ class ScriptGenerator:
 
             is_bool = type_description.startswith(('BOOLEAN', 'BIT'))
             if not is_bool:
-                is_string = type_description.startswith(('UNIQUEIDENTIFIER', 'NVARCHAR', 'VARCHAR', 'NCHAR', 'CHAR'))
+                is_string = type_description.startswith(('UNIQUEIDENTIFIER', 'TEXT', 'NVARCHAR', 'VARCHAR', 'NCHAR', 'CHAR'))
                 if not is_string:
-                    is_datetime = type_description.startswith(('DATETIMEOFFSET', 'DATETIME', 'DATE'
+                    is_datetime = type_description.startswith(('DATETIMEOFFSET', 'DATETIME', 'DATE',
                                                                'TIMESTAMP', 'TIME'))
                     if not is_datetime:
                         numbers_types = ('INTEGER', 'DECIMAL', 'BIGINT', 'FLOAT', 'INT', 'NUMERIC', 'REAL', 'SMALLINT',
@@ -161,7 +161,8 @@ class ScriptGenerator:
                             if not is_varbinary:
                                 is_xml = type_description.startswith('XML')
                                 if not is_xml:
-                                    print(f'Warning unknown type {row_data} : {type_description}')
+                                    print(f"Warning unknown type '{row_data}' : '{type_description}'")
+
             if is_numeric:
                 output_text = str(row_data)
             elif is_string:

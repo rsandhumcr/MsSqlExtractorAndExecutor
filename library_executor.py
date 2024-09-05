@@ -45,7 +45,7 @@ def execute_scripts() -> None:
                 data_rows = databaseSelector.execute_sql_script_raw_connection(db_name, script_data['sql_script'])
                 if len(data_rows) > 0:
                     no_of_result_sets = len(data_rows)
-                    no_of_rows = len(data_rows[0]['data'])
+                    no_of_rows: int = len(data_rows[0]['data'])
                     if no_of_result_sets == 1 and no_of_result_sets == 1:
                         print(f'You have {no_of_rows} row/s')
                     else:
