@@ -22,7 +22,7 @@ class ScriptGenerator:
             if show_identity_statement:
                 output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
             output_sql += f'--- INSERT INTO [{database_name}].{table_name} (\n '
-            output_sql += f'   INSERT INTO {table_name} (\n '
+            output_sql += f'   INSERT INTO {table_name} (\n  '
             loop_break_index = 5
             loop_counter = 0
 

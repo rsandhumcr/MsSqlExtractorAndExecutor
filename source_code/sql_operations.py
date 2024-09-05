@@ -124,6 +124,8 @@ class SqlOperations:
         if include_relationships:
             if where_clause:
                 current_relationship_selects = self.generate_selects_from_relationships(row_data)
+                current_relationship_selects = self.combine_relationships(current_relationship_selects)
+                #print('current_relationship_selects : ', current_relationship_selects)
                 if current_relationship_selects:
                     unique_relationship_selects = []
 
@@ -145,6 +147,39 @@ class SqlOperations:
 
         self.generate_output_data(db_name, table_name, where_clause, row_data, output_option, output_path_file)
         return previous_relationship_selects_output
+
+    @staticmethod
+    def combine_relationships(current_relationship_selects: RelationQuery | None) -> RelationQuery | None:
+        new_relationship_selects_output = []
+        if current_relationship_selects is None:
+            return None
+        cp_current_relationship_selects = current_relationship_selects.copy()
+        if len(current_relationship_selects) == 1:
+            return current_relationship_selects;
+        for index01, current_relationship01 in enumerate(cp_current_relationship_selects):
+            new_where_clause = current_relationship01['where']
+            table_match_found = False
+            for index02, current_relationship02 in enumerate(cp_current_relationship_selects):
+                if index01 != index02:
+                    if current_relationship01['schema'] == current_relationship02['schema'] and current_relationship01['table'] == current_relationship02['table']:
+                        key_01 = current_relationship01['where'].split('=')[0].strip()
+                        key_02 = current_relationship02['where'].split('=')[0].strip()
+                        if key_01 != key_02:
+                            table_match_found = True
+                            if new_where_clause != '':
+                                new_where_clause +=' AND '
+                            new_where_clause += current_relationship02['where']
+                            cp_current_relationship_selects.remove(current_relationship02)
+            if table_match_found:
+                new_relationship_selects_output.append({
+                    'schema': current_relationship01['schema'],
+                    'table': current_relationship01['table'],
+                    'where': new_where_clause
+                })
+            else:
+                new_relationship_selects_output.append(current_relationship01)
+                cp_current_relationship_selects.remove(current_relationship01)
+        return new_relationship_selects_output
 
     @staticmethod
     def generate_output_data(db_name: str, table_name: str, where_clause: str,
@@ -184,6 +219,7 @@ class SqlOperations:
                         print("Table/s with similar name")
                         print(schema_table_name)
             return data_is_ok
+
         except Exception as exc:
             self.handle_general_exceptions('check_database_table_names', exc)
 
