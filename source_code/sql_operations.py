@@ -150,12 +150,13 @@ class SqlOperations:
 
     @staticmethod
     def combine_relationships(current_relationship_selects: RelationQuery | None) -> RelationQuery | None:
-        new_relationship_selects_output = []
         if current_relationship_selects is None:
             return None
-        cp_current_relationship_selects = current_relationship_selects.copy()
         if len(current_relationship_selects) == 1:
-            return current_relationship_selects;
+            return current_relationship_selects
+        
+        new_relationship_selects_output = []
+        cp_current_relationship_selects = current_relationship_selects.copy()
         for index01, current_relationship01 in enumerate(cp_current_relationship_selects):
             new_where_clause = current_relationship01['where']
             table_match_found = False
