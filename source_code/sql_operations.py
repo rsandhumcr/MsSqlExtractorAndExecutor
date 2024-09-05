@@ -30,7 +30,7 @@ class SqlOperations:
                 foreign_keys_str = self.format_foreign_keys(foreign_keys)
                 has_foreign_keys = True
             columns_info = [f"{column_index} {key_marker}", table_columns['name'],
-                            table_columns['type'], foreign_keys_str]
+                            self.format_table_type(table_columns['type']), foreign_keys_str]
 
             table_column_description.append(columns_info)
             count_columns += 1
@@ -39,6 +39,9 @@ class SqlOperations:
         print(tabulate(table_column_description, headers, tablefmt="simple_grid"))
         print(f'Table : {table_name} has {count_columns} columns')
         return has_foreign_keys
+
+    def format_table_type(self, table_type: str) -> str:
+        return str(table_type).replace(" COLLATE ", " COLLATE \n")
 
     def format_foreign_keys(self, foreign_keys: set[ForeignKey]) -> list[str]:
         data_output = []
@@ -154,7 +157,7 @@ class SqlOperations:
             return None
         if len(current_relationship_selects) == 1:
             return current_relationship_selects
-        
+
         new_relationship_selects_output = []
         cp_current_relationship_selects = current_relationship_selects.copy()
         for index01, current_relationship01 in enumerate(cp_current_relationship_selects):
