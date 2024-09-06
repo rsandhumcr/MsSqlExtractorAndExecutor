@@ -10,15 +10,8 @@ def get_current_timestamp() -> str:
 class CSharpObjectGenerator:
 
     def create_object_statement(self, database_name: str, table_name: str,
-                                table_data: DatabaseOperations.TableRecords,
-                                primary_columns: DatabaseOperations.TableMetadata) -> str:
+                                table_data: DatabaseOperations.TableRecords) -> str:
         try:
-            primary_column_index = []
-            for index, columns in enumerate(table_data['columns']):
-                for primary_column in primary_columns:
-                    if columns['name'] == primary_column['name']:
-                        primary_column_index.append(index)
-
             number_of_columns = len(table_data['columns'])
 
             query = table_data['query']

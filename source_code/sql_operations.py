@@ -207,7 +207,7 @@ class SqlOperations:
             file_operations.write_to_file(output_path_file, insert_statement)
 
         if output_option == 'csharp':
-            csharp_statement = csharp_generator.create_object_statement(db_name, table_name, row_data, primary_columns)
+            csharp_statement = csharp_generator.create_object_statement(db_name, table_name, row_data)
             file_operations.write_to_file(output_path_file, csharp_statement)
 
 
