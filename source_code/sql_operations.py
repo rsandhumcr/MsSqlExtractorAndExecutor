@@ -4,11 +4,12 @@ import traceback
 from source_code.file_operations import FileOperations
 from source_code.script_generator import ScriptGenerator
 from source_code.database_operations import DatabaseOperations
+from source_code.csharp_object_generator import CSharpObjectGenerator
 
 file_operations = FileOperations()
 databaseSelector = DatabaseOperations()
 script_generator = ScriptGenerator()
-
+csharp_generator = CSharpObjectGenerator()
 
 class SqlOperations:
     type RelationQuery = list[dict[str, str] | None]
@@ -199,6 +200,11 @@ class SqlOperations:
         if output_option == 'insert' or output_option == 'update and insert':
             insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data)
             file_operations.write_to_file(output_path_file, insert_statement)
+
+        if output_option == 'csharp':
+            csharp_statement = csharp_generator.create_object_statement(db_name, table_name, row_data, primary_columns)
+            file_operations.write_to_file(output_path_file, csharp_statement)
+
 
     def check_database_table_names(self, db_name: str, table_name: str) -> bool:
         try:
