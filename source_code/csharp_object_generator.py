@@ -33,18 +33,17 @@ class CSharpObjectGenerator:
                 column_text = ''
 
                 for loop_columns in range(0, number_of_columns):
-                    if loop_columns not in primary_column_index:
-                        if len(column_text) > 0:
-                            column_text += ' ,'
-                        column = table_data['columns'][loop_columns]['name']
-                        value = self.format_row_data_type_with_column(row_data[loop_columns],
-                                                                      table_data['columns'][loop_columns])
-                        property_name =  self.format_name(column)
-                        column_text += f" {property_name} = {value}"
-                        loop_counter += 1
-                        if loop_counter >= loop_break_index:
-                            column_text += '\n    '
-                            loop_counter = 0
+                    if len(column_text) > 0:
+                        column_text += ' ,'
+                    column = table_data['columns'][loop_columns]['name']
+                    value = self.format_row_data_type_with_column(row_data[loop_columns],
+                                                                  table_data['columns'][loop_columns])
+                    property_name =  self.format_name(column)
+                    column_text += f" {property_name} = {value}"
+                    loop_counter += 1
+                    if loop_counter >= loop_break_index:
+                        column_text += '\n    '
+                        loop_counter = 0
 
                 output_sql += f'  {column_text}\n'
                 output_sql += '}'
