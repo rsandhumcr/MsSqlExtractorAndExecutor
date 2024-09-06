@@ -60,7 +60,7 @@ class CSharpObjectGenerator:
                                          column_data: DatabaseOperations.TableMetadataItem) -> str:
         try:
             if row_data is None:
-                return 'NULL'
+                return 'null'
 
             type_description = str(column_data['type'])
 
