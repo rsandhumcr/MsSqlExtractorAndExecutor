@@ -114,12 +114,12 @@ class CSharpObjectGenerator:
                 datetime_with_extra = str(row_data)
                 datetime = datetime_with_extra.split('.')
                 row_item = str(datetime[0])
-                output_text = f'new DateTime("{row_item}")'
+                output_text = f'DateTime.Parse("{row_item}")'
             elif is_datetimeoffset:
                 datetime_with_extra = str(row_data)
                 datetime = datetime_with_extra.split('.')
                 row_item = str(datetime[0])
-                output_text = f'new DateTimeOffSet(DateTime("{row_item}"))'
+                output_text = f'new DateTimeOffSet(DateTime.Parse("{row_item}"))'
             elif is_bool:
                 row_item = 'false'
                 if row_data == 'True':
