@@ -128,8 +128,9 @@ class SqlOperations:
         if include_relationships:
             if where_clause:
                 current_relationship_selects = self.generate_selects_from_relationships(row_data)
+                #print('Before current_relationship_selects : ', current_relationship_selects)
                 current_relationship_selects = self.combine_relationships(current_relationship_selects)
-                #print('current_relationship_selects : ', current_relationship_selects)
+                #print('After current_relationship_selects : ', current_relationship_selects)
                 if current_relationship_selects:
                     unique_relationship_selects = []
 
@@ -160,30 +161,34 @@ class SqlOperations:
             return current_relationship_selects
 
         new_relationship_selects_output = []
-        cp_current_relationship_selects = current_relationship_selects.copy()
-        for index01, current_relationship01 in enumerate(cp_current_relationship_selects):
-            new_where_clause = current_relationship01['where']
-            table_match_found = False
-            for index02, current_relationship02 in enumerate(cp_current_relationship_selects):
-                if index01 != index02:
-                    if current_relationship01['schema'] == current_relationship02['schema'] and current_relationship01['table'] == current_relationship02['table']:
-                        key_01 = current_relationship01['where'].split('=')[0].strip()
-                        key_02 = current_relationship02['where'].split('=')[0].strip()
-                        if key_01 != key_02:
-                            table_match_found = True
-                            if new_where_clause != '':
-                                new_where_clause +=' AND '
-                            new_where_clause += current_relationship02['where']
-                            cp_current_relationship_selects.remove(current_relationship02)
-            if table_match_found:
-                new_relationship_selects_output.append({
-                    'schema': current_relationship01['schema'],
-                    'table': current_relationship01['table'],
-                    'where': new_where_clause
-                })
-            else:
-                new_relationship_selects_output.append(current_relationship01)
-                cp_current_relationship_selects.remove(current_relationship01)
+        cp_current_relationship_selects01 = current_relationship_selects.copy()
+        length_of_relationships = len(cp_current_relationship_selects01)
+        while length_of_relationships > 0:
+            for index01, current_relationship01 in enumerate(cp_current_relationship_selects01):
+                new_where_clause = current_relationship01['where']
+                table_match_found = False
+                for index02, current_relationship02 in enumerate(cp_current_relationship_selects01):
+                    if index01 != index02:
+                        if current_relationship01['schema'] == current_relationship02['schema'] and current_relationship01['table'] == current_relationship02['table']:
+                            key_01 = current_relationship01['where'].split('=')[0].strip()
+                            key_02 = current_relationship02['where'].split('=')[0].strip()
+                            if key_01 != key_02:
+                                table_match_found = True
+                                if new_where_clause != '':
+                                    new_where_clause +=' AND '
+                                new_where_clause += current_relationship02['where']
+                                cp_current_relationship_selects01.remove(current_relationship02)
+                if table_match_found:
+                    new_relationship_selects_output.append({
+                        'schema': current_relationship01['schema'],
+                        'table': current_relationship01['table'],
+                        'where': new_where_clause
+                    })
+                else:
+                    new_relationship_selects_output.append(current_relationship01)
+                cp_current_relationship_selects01.remove(current_relationship01)
+                length_of_relationships = len(cp_current_relationship_selects01)
+
         return new_relationship_selects_output
 
     @staticmethod
