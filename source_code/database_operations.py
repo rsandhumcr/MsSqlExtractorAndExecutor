@@ -22,15 +22,17 @@ class DatabaseOperations:
         self.master_database = master_database
 
     def get_connection_info(self, database_name: str = None) -> ConnectionType:
-
         if database_name is None:
             database_name = self.master_database
 
         is_connection_local = True
 
+        # ms_sql_driver = "SQL+Server+Native+Client+11.0"
+        ms_sql_driver = "ODBC+Driver+17+for+SQL+Server"
+
         if is_connection_local:
             # Local connection
-            connection_string_value = f'mssql+pyodbc://./{database_name}?driver=SQL+Server+Native+Client+11.0'
+            connection_string_value = f'mssql+pyodbc://./{database_name}?driver={ms_sql_driver}'
             return connection_string_value
 
         # Remote connection
@@ -42,7 +44,7 @@ class DatabaseOperations:
             port=1433,
             database=database_name,
             query={
-                "driver": "SQL Server Native Client 11.0",
+                "driver": ms_sql_driver,
                 "Encrypt": "yes",
                 "TrustServerCertificate": "yes",
             },
