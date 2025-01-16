@@ -88,9 +88,9 @@ class DatabaseOperations:
 
     def search_table_name(self, database_name: str, table_name_search: str) -> list[str]:
         try:
-            query = f"SELECT '[' + [TABLE_SCHEMA] + '].[' + [TABLE_NAME] + ']' NAME"
-            query += f" FROM {database_name}.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
-            query += f"AND TABLE_NAME LIKE '%{table_name_search}%'"
+            query = f"SELECT '[' + [TABLE_SCHEMA] + '].[' + [TABLE_NAME] + ']' NAME "
+            query += f"FROM [{database_name}].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' "
+            query += f"AND TABLE_NAME LIKE '%{table_name_search}%' "
             result_set = self.execute_sql_script(database_name, query)
 
             schema_table_names = []
