@@ -2,10 +2,12 @@ import questionary
 import traceback
 from source_code.database_operations import DatabaseOperations
 from source_code.file_operations import FileOperations
+from source_code.database_config import DatabaseConfig
+from sqlalchemy.engine import URL
 
 file_operations = FileOperations()
 database_operations = DatabaseOperations()
-
+database_config = DatabaseConfig()
 
 class UserOptions:
 
@@ -53,6 +55,16 @@ class UserOptions:
         except Exception as exc:
             self.handle_general_exceptions('get_database_name', exc)
 
+    def get_database_config(self) -> dict[str, str|URL]:
+        try:
+            database_config_names = database_config.get_connection_config_names()
+            database_config_selected = questionary.select(
+                "Select a database configuration",
+                choices=database_config_names).ask()  # returns value of selection
+            return database_config.get_connection(database_config_selected)
+        except Exception as exc:
+            self.handle_general_exceptions('get_database_name', exc)
+
     @staticmethod
     def get_database_names() -> list[str]:
 
@@ -64,8 +76,8 @@ class UserOptions:
         return database_selected
 
     @staticmethod
-    def search_table_name(database_name: str, table_name_search: str) -> str:
-        schema_table_name = database_operations.search_table_name(database_name, table_name_search)
+    def search_table_name(database_config: dict[str, str|URL], table_name_search: str) -> str:
+        schema_table_name = database_operations.search_table_name(database_config, table_name_search)
         schema_table_name.append('Search again')
         table_selected = questionary.select(
             "Select a table",

@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey,URL
 from tabulate import tabulate
 import traceback
 from source_code.file_operations import FileOperations
@@ -115,10 +115,10 @@ class SqlOperations:
                         break
         return in_found_in_list
 
-    def extract_table_data(self, output_path_file: str, db_name: str, table_name: str, where_clause: str,
+    def extract_table_data(self, output_path_file: str, database_config: dict[str, str|URL], table_name: str, where_clause: str,
                            output_option: str, include_relationships: bool,
                            previous_relationship_selects: RelationQuery):
-        row_data = databaseSelector.get_table_data(db_name, table_name, where_clause)
+        row_data = databaseSelector.get_table_data(database_config, table_name, where_clause)
 
         if len(row_data['data']) == 0:
             print('No data found')
@@ -143,14 +143,14 @@ class SqlOperations:
                     previous_relationship_selects.extend(unique_relationship_selects)
                     for current_relationship in unique_relationship_selects:
                         previous_relationship_selects_output = self.extract_table_data(output_path_file,
-                                   db_name,
+                                   database_config,
                                    f"{current_relationship['schema']}.{current_relationship['table']}",
                                    current_relationship['where'],
                                    output_option,
                                    include_relationships,
                                    previous_relationship_selects)
 
-        self.generate_output_data(db_name, table_name, where_clause, row_data, output_option, output_path_file)
+        self.generate_output_data(database_config['db_name'], table_name, where_clause, row_data, output_option, output_path_file)
         return previous_relationship_selects_output
 
     @staticmethod

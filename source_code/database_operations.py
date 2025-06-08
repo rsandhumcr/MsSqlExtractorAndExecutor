@@ -21,59 +21,22 @@ class DatabaseOperations:
     def __init__(self, master_database='master'):
         self.master_database = master_database
 
-    def get_connection_info(self, database_name: str = None) -> ConnectionType:
-        if database_name is None:
-            database_name = self.master_database
-
-        is_connection_local = True
-
-        # ms_sql_driver = "SQL+Server+Native+Client+11.0"
-        ms_sql_driver = "ODBC+Driver+17+for+SQL+Server"
-
-        if is_connection_local:
-            # Local connection
-            connection_string_value = f'mssql+pyodbc://./{database_name}?driver={ms_sql_driver}'
-            return connection_string_value
-
-        # Remote connection
-        connection_url = URL.create(
-            "mssql+pyodbc",
-            username="TestUser",
-            password="TestPassword",
-            host="127.0.0.1",
-            port=1433,
-            database=database_name,
-            query={
-                "driver": ms_sql_driver,
-                "Encrypt": "yes",
-                "TrustServerCertificate": "yes",
-            },
-        )
-        return connection_url
-
-    def get_connection_object(self, database_name: str) -> sqlalchemy.engine.Connection:
+    def get_connection_object(self, connection_info: str|URL) -> sqlalchemy.engine.Connection:
         try:
-            connection_info = self.get_connection_info(database_name)
             engine: Engine = create_engine(connection_info, echo=False)
             conn: sqlalchemy.engine.Connection = engine.connect()
             return conn
         except Exception as exc:
-            print(f'DatabaseOperations Method : get_connection_object')
-            print('ex : ', exc)
-            print(f"Method 'DatabaseOperations.get_connection_info' contains connection string settings.")
+            self.handle_general_exceptions('get_connection_object', exc)
             exit()
 
-    def get_raw_connection_object(self, database_name: str) -> PoolProxiedConnection:
+    def get_raw_connection_object(self, database_config: dict[str, str|URL]) -> PoolProxiedConnection:
         try:
-            connection_info = self.get_connection_info(database_name)
-            raw_connection: PoolProxiedConnection = create_engine(connection_info, echo=False).raw_connection()
+            raw_connection: PoolProxiedConnection = create_engine(database_config['connection_str'], echo=False).raw_connection()
             return raw_connection
         except Exception as exc:
-            print(f'DatabaseOperations Method : get_connection_object')
-            print('ex : ', exc)
-            print(f"Method 'DatabaseOperations.get_connection_info' contains connection string settings.")
+            self.handle_general_exceptions('get_raw_connection_object', exc)
             exit()
-
 
     def get_database(self) -> list[str]:
         try:
@@ -86,12 +49,12 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('get_database', exc)
 
-    def search_table_name(self, database_name: str, table_name_search: str) -> list[str]:
+    def search_table_name(self, database_config: dict[str, str|URL], table_name_search: str) -> list[str]:
         try:
             query = f"SELECT '[' + [TABLE_SCHEMA] + '].[' + [TABLE_NAME] + ']' NAME "
-            query += f"FROM [{database_name}].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' "
+            query += f"FROM [{database_config['db_name']}].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' "
             query += f"AND TABLE_NAME LIKE '%{table_name_search}%' "
-            result_set = self.execute_sql_script(database_name, query)
+            result_set = self.execute_sql_script(database_config, query)
 
             schema_table_names = []
             for row in result_set['data']:
@@ -101,9 +64,9 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('search_table_name', exc)
 
-    def get_table_data(self, database_name: str, table_name: str, where_clause: str) -> TableRecords:
-        table_data = self.get_table_query_data(database_name, table_name, where_clause)
-        table_meta_data = self.get_table_meta_data_simple_string(database_name, table_name)
+    def get_table_data(self, database_config: dict[str, str|URL], table_name: str, where_clause: str) -> TableRecords:
+        table_data = self.get_table_query_data(database_config, table_name, where_clause)
+        table_meta_data = self.get_table_meta_data_simple_string(database_config, table_name)
 
         return {
             'query': table_data['query'],
@@ -111,13 +74,13 @@ class DatabaseOperations:
             'columns': table_meta_data
         }
 
-    def get_table_query_data(self, database_name: str, table_name: str, where_clause: str) -> dict[str, list[any]]:
+    def get_table_query_data(self, database_config: dict[str, str|URL], table_name: str, where_clause: str) -> dict[str, list[any]]:
         try:
             query: str = f"SELECT * FROM {table_name} "
             if where_clause:
                 query += f"WHERE {where_clause}"
 
-            result_set = self.execute_sql_script(database_name, query)
+            result_set = self.execute_sql_script(database_config, query)
 
             table_data_rows = []
             for row in result_set['data']:
@@ -130,9 +93,9 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('get_table_data', exc)
 
-    def get_table_meta_data(self, database_name: str, schema_name: str, table_name: str) -> TableMetadata:
+    def get_table_meta_data(self, database_config: dict[str, str|URL], schema_name: str, table_name: str) -> TableMetadata:
         try:
-            connection = self.get_connection_object(database_name)
+            connection = self.get_connection_object(database_config['connection_str'])
 
             meta_data = sqlalchemy.MetaData()
             table_data = sqlalchemy.Table(table_name, meta_data, schema=schema_name, autoload_with=connection)
@@ -159,9 +122,9 @@ class DatabaseOperations:
             return {'schema': 'dbo', 'table': database_names}
         return {'schema': database_names[0], 'table': database_names[1]}
 
-    def get_table_meta_data_simple_string(self, database_name: str, table_name: str) -> TableMetadata:
+    def get_table_meta_data_simple_string(self, database_config: dict[str, str|URL], table_name: str) -> TableMetadata:
         table_data = self.extract_schema_table_name(table_name)
-        return self.get_table_meta_data(database_name, table_data['schema'], table_data['table'])
+        return self.get_table_meta_data(database_config, table_data['schema'], table_data['table'])
 
     @staticmethod
     def get_primary_columns(table_data: TableRecords) -> TableMetadata:
@@ -171,24 +134,25 @@ class DatabaseOperations:
                 primary_columns.append(dataRow)
         return primary_columns
 
-    def execute_sql_script_no_data(self, database_name: str, sql_script: str) -> None:
+    def execute_sql_script_no_data(self, database_config: dict[str, str|URL], sql_script: str) -> None:
         try:
             if self.enable_logging:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            connection = self.get_connection_object(database_name)
+            connection = self.get_connection_object(database_config['connection_str'])
             connection.execute(text(sql_script))
             connection.commit()
             connection.close()
         except Exception as exc:
             self.handle_general_exceptions('execute_sql_script_no_data', exc)
 
-    def execute_sql_script(self, database_name: str | None, sql_script: str) -> dict[str, list[any]]:
+    def execute_sql_script(self, database_config: dict[str, str|URL] | None, sql_script: str) -> dict[str, list[any]]:
         try:
             if self.enable_logging:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            connection = self.get_connection_object(database_name)
+
+            connection = self.get_connection_object(database_config['connection_str'])
 
             result_set = connection.execute(text(sql_script))
             columns = []
@@ -205,13 +169,13 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('execute_sql_script', exc)
 
-    def execute_sql_script_raw_connection(self, database_name: str | None, sql_script: str) -> list[dict[str, list[any]]]:
+    def execute_sql_script_raw_connection(self, database_config: dict[str, str|URL], sql_script: str) -> list[dict[str, list[any]]]:
         result = []
         try:
             if self.enable_logging:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            raw_connection = self.get_raw_connection_object(database_name)
+            raw_connection = self.get_raw_connection_object(database_config)
 
             cursor = raw_connection.cursor()
             cursor.execute(sql_script)

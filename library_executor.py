@@ -18,7 +18,7 @@ def get_current_timestamp() -> str:
 
 
 def execute_scripts() -> None:
-    db_name = user_options.get_database_options()
+    db_config = user_options.get_database_config()
     selected_file = 'initial'
 
     new_path = library_path
@@ -28,7 +28,8 @@ def execute_scripts() -> None:
         if selected_file == '> Abort execution':
             exit()
         if selected_file == '> Database selection':
-            db_name = user_options.get_database_name()
+            #db_name = user_options.get_database_name()
+            db_config = user_options.get_database_config()
         elif selected_file == '> ..':
             if library_path != new_path:
                 new_path = file_operations.get_parent_directory(new_path)
@@ -42,7 +43,7 @@ def execute_scripts() -> None:
             script_data = parse_sql_parameters.replace_parameters_with_prompts(sql_script)
             if script_data['return_results']:
                 # data_rows = databaseSelector.execute_sql_script(db_name, script_data['sql_script'])
-                data_rows = databaseSelector.execute_sql_script_raw_connection(db_name, script_data['sql_script'])
+                data_rows = databaseSelector.execute_sql_script_raw_connection(db_config, script_data['sql_script'])
                 if len(data_rows) > 0:
                     no_of_result_sets = len(data_rows)
                     no_of_rows: int = len(data_rows[0]['data'])
@@ -77,7 +78,7 @@ def execute_scripts() -> None:
                 else:
                     print('No Data Returned')
             else:
-                databaseSelector.execute_sql_script_no_data(db_name, script_data['sql_script'])
+                databaseSelector.execute_sql_script_no_data(db_config, script_data['sql_script'])
 
 
 if __name__ == '__main__':
