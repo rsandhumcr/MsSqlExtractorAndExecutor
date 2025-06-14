@@ -1,6 +1,8 @@
 import traceback
 import logging
 import sqlalchemy
+import struct
+from azure.identity import AzureCliCredential
 from sqlalchemy import text, create_engine, PoolProxiedConnection, Sequence
 from sqlalchemy.engine.interfaces import DBAPICursor
 from sqlalchemy.sql.base import ReadOnlyColumnCollection
@@ -8,9 +10,6 @@ from sqlalchemy.sql.schema import Column, ForeignKey
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy.sql.type_api import TypeEngine
 from typing import Literal, Callable, Any
-import struct
-from azure.identity import AzureCliCredential
-from sqlalchemy import event
 
 SQL_COPT_SS_ACCESS_TOKEN = 1256  # As defined in msodbcsql.h
 
@@ -27,8 +26,8 @@ class DatabaseOperations:
 
     def get_connection_object(self, database_config: dict[str, str|URL]) -> sqlalchemy.engine.Connection:
         try:
-            if database_config['is_azure_identity']:
-                token_struct = self.get_azure_auth_token()
+            if database_config['use_azure_identity_entra']:
+                token_struct = self.get_azure_cli_auth_token()
                 constr = database_config['connection_str']
                 engine: Engine = create_engine(constr, connect_args={"attrs_before": {SQL_COPT_SS_ACCESS_TOKEN:token_struct}})
             else:
@@ -39,22 +38,22 @@ class DatabaseOperations:
             self.handle_general_exceptions('get_connection_object', exc)
             exit()
 
-    def get_azure_auth_token(self) -> bytes:
+    def get_azure_cli_auth_token(self) -> bytes:
         credential = AzureCliCredential()
         databaseToken = credential.get_token('https://database.windows.net/')
         tokenb = bytes(databaseToken[0], "UTF-8")
-        exptoken = b'';
+        exptoken = b''
         for i in tokenb:
-            exptoken += bytes({i});
-            exptoken += bytes(1);
-        token_struct = struct.pack("=i", len(exptoken)) + exptoken;
-        return token_struct;
+            exptoken += bytes({i})
+            exptoken += bytes(1)
+        token_struct = struct.pack("=i", len(exptoken)) + exptoken
+        return token_struct
 
     def get_raw_connection_object(self, database_config: dict[str, str|URL]) -> PoolProxiedConnection:
         try:
             #raw_connection: PoolProxiedConnection = create_engine(database_config['connection_str'], echo=False).raw_connection()
-            if database_config['is_azure_identity']:
-                token_struct = self.get_azure_auth_token()
+            if database_config['use_azure_identity_entra']:
+                token_struct = self.get_azure_cli_auth_token()
                 constr = database_config['connection_str']
                 raw_connection: PoolProxiedConnection = create_engine(constr, connect_args={"attrs_before": {SQL_COPT_SS_ACCESS_TOKEN:token_struct}}).raw_connection()
             else:
@@ -64,16 +63,7 @@ class DatabaseOperations:
             self.handle_general_exceptions('get_raw_connection_object', exc)
             exit()
 
-    def inject_azure_credential(credential, engine, token_url='https://database.windows.net/'):
-        @event.listens_for(engine, 'do_connect')
-        def do_connect(dialect, conn_rec, cargs, cparams):
-            token = credential.get_token(token_url).token.encode('utf-16-le')
-            token_struct = struct.pack(f'=I{len(token)}s', len(token), token)
-            attrs_before = cparams.setdefault('attrs_before', {})
-            attrs_before[SQL_COPT_SS_ACCESS_TOKEN] = bytes(token_struct)
-            return dialect.connect(*cargs, **cparams)
-
-    def get_database(self) -> list[str]:
+    def get_database(self) -> list[Any] | None:
         try:
             query = 'SELECT name FROM sys.sysdatabases ORDER BY name'
             result_set = self.execute_sql_script(None, query)
@@ -84,7 +74,7 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('get_database', exc)
 
-    def search_table_name(self, database_config: dict[str, str|URL], table_name_search: str) -> list[str]:
+    def search_table_name(self, database_config: dict[str, str|URL], table_name_search: str) -> list[Any] | None:
         try:
             query = f"SELECT '[' + [TABLE_SCHEMA] + '].[' + [TABLE_NAME] + ']' NAME "
             query += f"FROM [{database_config['db_name']}].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' "
@@ -109,7 +99,10 @@ class DatabaseOperations:
             'columns': table_meta_data
         }
 
-    def get_table_query_data(self, database_config: dict[str, str|URL], table_name: str, where_clause: str) -> dict[str, list[any]]:
+    def get_table_query_data(self, database_config: dict[str, str|URL], table_name: str, where_clause: str) -> dict[
+                                                                                                                   str, str |
+                                                                                                                        list[
+                                                                                                                            Any]] | None:
         try:
             query: str = f"SELECT * FROM {table_name} "
             if where_clause:
@@ -128,7 +121,8 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('get_table_data', exc)
 
-    def get_table_meta_data(self, database_config: dict[str, str|URL], schema_name: str, table_name: str) -> TableMetadata:
+    def get_table_meta_data(self, database_config: dict[str, str|URL], schema_name: str, table_name: str) -> list[
+                                                                                                                 Any] | None:
         try:
             connection = self.get_connection_object(database_config)
 
@@ -181,7 +175,8 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('execute_sql_script_no_data', exc)
 
-    def execute_sql_script(self, database_config: dict[str, str|URL] | None, sql_script: str) -> dict[str, list[any]]:
+    def execute_sql_script(self, database_config: dict[str, str|URL] | None, sql_script: str) -> dict[str, list[
+        Any]] | None:
         try:
             if self.enable_logging:
                 logging.basicConfig()
@@ -204,7 +199,8 @@ class DatabaseOperations:
         except Exception as exc:
             self.handle_general_exceptions('execute_sql_script', exc)
 
-    def execute_sql_script_raw_connection(self, database_config: dict[str, str|URL], sql_script: str) -> list[dict[str, list[any]]]:
+    def execute_sql_script_raw_connection(self, database_config: dict[str, str|URL], sql_script: str) -> list[
+                                                                                                             Any] | None:
         result = []
         try:
             if self.enable_logging:
