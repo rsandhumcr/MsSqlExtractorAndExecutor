@@ -5,10 +5,12 @@ connection_config = {
     'local' : {
         'db_name': 'AdventureWorksLT2019',
         'connection_str' : f'mssql+pyodbc://./AdventureWorksLT2019?driver=ODBC+Driver+17+for+SQL+Server',
+        'is_azure_identity': False,
     },
     'local2': {
         'db_name': 'AdventureWorksLT2019',
         'connection_str': f'mssql+pyodbc://user02:user02@./AdventureWorksLT2019?driver=ODBC+Driver+17+for+SQL+Server',
+        'is_azure_identity': False,
     },
     'AdventureWorksLT2019_v01' : {
         'db_name': 'AdventureWorksLT2019',
@@ -21,9 +23,10 @@ connection_config = {
             query={
                 "driver": "SQL Server",
             }),
+        'is_azure_identity': False,
     },
     'AdventureWorksLT2019_v02': {
-        'db_name': 'AdventureWorksLT2019',
+        'db_name': 'ecov-dev-party',
         'connection_str': URL.create(
             "mssql+pyodbc",
             username="user02",
@@ -36,7 +39,13 @@ connection_config = {
                 "Encrypt": "yes",
                 "TrustServerCertificate": "yes",
             }),
-    }
+        'is_azure_identity': False,
+    },
+    'dev-db': {
+        'db_name': 'dev-db',
+        'connection_str': f'mssql+pyodbc:///?odbc_connect=Driver={{ODBC Driver 17 for SQL Server}};SERVER=dev.database.windows.net;DATABASE=dev-db',
+        'is_azure_identity': True
+    },
 }
 
 class DatabaseConfig:

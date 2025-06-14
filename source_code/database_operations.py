@@ -8,7 +8,11 @@ from sqlalchemy.sql.schema import Column, ForeignKey
 from sqlalchemy.engine import Engine, URL
 from sqlalchemy.sql.type_api import TypeEngine
 from typing import Literal, Callable, Any
+import struct
+from azure.identity import AzureCliCredential
+from sqlalchemy import event
 
+SQL_COPT_SS_ACCESS_TOKEN = 1256  # As defined in msodbcsql.h
 
 class DatabaseOperations:
     enable_logging = False
@@ -21,22 +25,53 @@ class DatabaseOperations:
     def __init__(self, master_database='master'):
         self.master_database = master_database
 
-    def get_connection_object(self, connection_info: str|URL) -> sqlalchemy.engine.Connection:
+    def get_connection_object(self, database_config: dict[str, str|URL]) -> sqlalchemy.engine.Connection:
         try:
-            engine: Engine = create_engine(connection_info, echo=False)
+            if database_config['is_azure_identity']:
+                token_struct = self.get_azure_auth_token()
+                constr = database_config['connection_str']
+                engine: Engine = create_engine(constr, connect_args={"attrs_before": {SQL_COPT_SS_ACCESS_TOKEN:token_struct}})
+            else:
+                engine: Engine = create_engine(database_config['connection_str'], echo=False)
             conn: sqlalchemy.engine.Connection = engine.connect()
             return conn
         except Exception as exc:
             self.handle_general_exceptions('get_connection_object', exc)
             exit()
 
+    def get_azure_auth_token(self) -> bytes:
+        credential = AzureCliCredential()
+        databaseToken = credential.get_token('https://database.windows.net/')
+        tokenb = bytes(databaseToken[0], "UTF-8")
+        exptoken = b'';
+        for i in tokenb:
+            exptoken += bytes({i});
+            exptoken += bytes(1);
+        token_struct = struct.pack("=i", len(exptoken)) + exptoken;
+        return token_struct;
+
     def get_raw_connection_object(self, database_config: dict[str, str|URL]) -> PoolProxiedConnection:
         try:
-            raw_connection: PoolProxiedConnection = create_engine(database_config['connection_str'], echo=False).raw_connection()
+            #raw_connection: PoolProxiedConnection = create_engine(database_config['connection_str'], echo=False).raw_connection()
+            if database_config['is_azure_identity']:
+                token_struct = self.get_azure_auth_token()
+                constr = database_config['connection_str']
+                raw_connection: PoolProxiedConnection = create_engine(constr, connect_args={"attrs_before": {SQL_COPT_SS_ACCESS_TOKEN:token_struct}}).raw_connection()
+            else:
+                raw_connection: PoolProxiedConnection = create_engine(database_config['connection_str'], echo=False).raw_connection()
             return raw_connection
         except Exception as exc:
             self.handle_general_exceptions('get_raw_connection_object', exc)
             exit()
+
+    def inject_azure_credential(credential, engine, token_url='https://database.windows.net/'):
+        @event.listens_for(engine, 'do_connect')
+        def do_connect(dialect, conn_rec, cargs, cparams):
+            token = credential.get_token(token_url).token.encode('utf-16-le')
+            token_struct = struct.pack(f'=I{len(token)}s', len(token), token)
+            attrs_before = cparams.setdefault('attrs_before', {})
+            attrs_before[SQL_COPT_SS_ACCESS_TOKEN] = bytes(token_struct)
+            return dialect.connect(*cargs, **cparams)
 
     def get_database(self) -> list[str]:
         try:
@@ -95,7 +130,7 @@ class DatabaseOperations:
 
     def get_table_meta_data(self, database_config: dict[str, str|URL], schema_name: str, table_name: str) -> TableMetadata:
         try:
-            connection = self.get_connection_object(database_config['connection_str'])
+            connection = self.get_connection_object(database_config)
 
             meta_data = sqlalchemy.MetaData()
             table_data = sqlalchemy.Table(table_name, meta_data, schema=schema_name, autoload_with=connection)
@@ -139,7 +174,7 @@ class DatabaseOperations:
             if self.enable_logging:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            connection = self.get_connection_object(database_config['connection_str'])
+            connection = self.get_connection_object(database_config)
             connection.execute(text(sql_script))
             connection.commit()
             connection.close()
@@ -152,7 +187,7 @@ class DatabaseOperations:
                 logging.basicConfig()
                 logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
-            connection = self.get_connection_object(database_config['connection_str'])
+            connection = self.get_connection_object(database_config)
 
             result_set = connection.execute(text(sql_script))
             columns = []
