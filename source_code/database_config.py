@@ -55,8 +55,6 @@ class DatabaseConfig:
         output=[]
         for key in connection_config.keys():
             name = key
-            if connection_config[key]['use_azure_identity_entra']:
-                name += ' (Azure Entra)'
             output.append(name)
         return output
 
