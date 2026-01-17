@@ -11,7 +11,7 @@ file_operations = FileOperations()
 parse_sql_parameters = ParseSqlParameters()
 user_options = UserOptions()
 SqlOperations = SqlOperations()
-
+output_file = 'output\\execution.txt'
 
 def get_current_timestamp() -> str:
     return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
@@ -48,7 +48,9 @@ def execute_scripts() -> None:
                     no_of_result_sets = len(data_rows)
                     no_of_rows: int = len(data_rows[0]['data'])
                     if no_of_result_sets == 1 and no_of_result_sets == 1:
-                        print(f'You have {no_of_rows} row/s')
+                        data_output= f'{selected_file}\nYou have {no_of_rows} row/s' + '\n' + script_data['parameter_values']
+                        print(data_output)
+                        file_operations.write_to_file(output_file, data_output)
                     else:
                         print(f'You have:')
                         for result_index, data_row in enumerate(data_rows):
@@ -74,6 +76,9 @@ def execute_scripts() -> None:
                         data_output_str = SqlOperations.show_table_results(result_set_count, selected_file,
                                                                            is_columns, data_row, show_headers)
                         print(data_output_str)
+                        current_time = get_current_timestamp()
+                        output_data = current_time  + data_output_str.replace('\r\n', '\n') + '\n' + current_time
+                        file_operations.write_to_file(output_file, output_data)
                     print(get_current_timestamp())
                 else:
                     print('No Data Returned')

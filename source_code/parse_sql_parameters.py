@@ -64,6 +64,7 @@ class ParseSqlParameters:
 
     def replace_parameters_with_prompts(self, sql_script_input: str) -> dict[str, str]:
         adjusted_sql = sql_script_input
+        parameter_value = ''
         has_parameters = self.has_parameter_section(sql_script_input)
         if has_parameters:
             p_sections = self.extract_parameters_section(sql_script_input)
@@ -74,6 +75,8 @@ class ParseSqlParameters:
                     prompt_data.append(processed_parameters)
             self.prompt_user(prompt_data)
             adjusted_sql = self.replace_parameter_values(prompt_data, sql_script_input)
+            for prompt in prompt_data:
+                parameter_value += prompt['response'] + "\n"
         with_return_results = self.check_for_return_results_marker(sql_script_input)
         with_columns = self.check_for_columns_results_marker(sql_script_input)
         with_rows = self.check_for_rows_results_marker(sql_script_input)
@@ -84,7 +87,7 @@ class ParseSqlParameters:
         if with_rows:
             set_result_types = False
         return {'sql_script': adjusted_sql, 'return_results': with_return_results,
-                'result_in_columns': set_result_types, 'no_headers': no_headers}
+                'result_in_columns': set_result_types, 'no_headers': no_headers, 'parameter_values': parameter_value}
 
     def check_for_return_results_marker(self, sql_script_input: str) -> bool:
         return self.search_script_for_text(sql_script_input, '--- with results')
