@@ -61,13 +61,15 @@ Parameter which you require interactive input must be defined between the lines 
 
 Values which are replaced with user input/s require them to be marked with '&lt;value&gt;'
 
+You can add default value which is used if no value. Default value is defined entered by placing the value in square brackets.
+
 e.g.
 
 --- parameters start
 
 DECLARE @ProductId INT = &lt;value&gt;; --- Enter product Id ?
 
-DECLARE @Description VARCHAR(30) = &lt;value&gt;; --- Enter description ?
+DECLARE @Description VARCHAR(30) = &lt;value&gt;; --- Enter description [default value]?
 
 --- parameters end
 

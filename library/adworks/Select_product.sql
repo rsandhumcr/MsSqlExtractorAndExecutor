@@ -1,5 +1,5 @@
 --- parameters start
-DECLARE @ProductId INT = <value>; --- Enter product Id ?
+DECLARE @ProductId INT = <value>; --- Enter product Id [680] ?
 --- parameters end
 --- with results
 

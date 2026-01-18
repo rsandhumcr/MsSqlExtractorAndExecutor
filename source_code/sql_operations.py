@@ -16,6 +16,7 @@ class SqlOperations:
     type RelationQueryItem = dict[str, str] | None
 
     def print_table_info(self, table_name: str, table_info: DatabaseOperations.TableMetadata) -> bool:
+        output_file='output\\execution.txt'
         has_foreign_keys = False
         table_column_description = []
         count_columns = 0
@@ -39,6 +40,10 @@ class SqlOperations:
         print('(+ = primary key, * = autoincrement)')
         print(tabulate(table_column_description, headers, tablefmt="simple_grid"))
         print(f'Table : {table_name} has {count_columns} columns')
+        file_operations.write_to_file(output_file, f'\nTable : {table_name}\n(+ = primary key, * = autoincrement)\n')
+        with open(output_file, 'a') as f:
+            f.write(tabulate(table_column_description, headers, tablefmt="simple"))
+        file_operations.write_to_file(output_file, f'\nTable : {table_name} has {count_columns} columns\n')
         return has_foreign_keys
 
     def format_table_type(self, table_type: str) -> str:

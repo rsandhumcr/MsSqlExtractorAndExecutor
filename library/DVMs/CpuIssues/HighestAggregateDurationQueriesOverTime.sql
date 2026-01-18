@@ -1,7 +1,7 @@
 ---- Get highest aggregate duration queries over last hour (Query 4) (High Aggregate Duration Queries)
 
 --- parameters start
-DECLARE @HoursAgo INT = <value>; --- How many hours ago ?
+DECLARE @HoursAgo INT = <value>; --- How many hours ago [1] ?
 --- parameters end
 --- with results columns
 WITH AggregatedDurationLastHour

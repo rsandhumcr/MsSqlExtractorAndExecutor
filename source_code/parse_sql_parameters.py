@@ -32,13 +32,21 @@ class ParseSqlParameters:
         return parameters
 
     @staticmethod
-    def extract_parameters(parameter_line: str) -> dict[str, str]:
+    def find_parameter_default(parameter_data: str) -> str:
+        default_start_index = parameter_data.find('[')
+        default_end_index = parameter_data.find(']')
+        if default_start_index == -1 or default_end_index == -1:
+            return ''
+        return parameter_data[default_start_index + 1:default_end_index]
+
+    def extract_parameters(self,parameter_line: str) -> dict[str, str]:
         end_of_sql_line_index = parameter_line.find(';') + 1
         sql_line = parameter_line[: end_of_sql_line_index]
         prompt = parameter_line[end_of_sql_line_index:].strip()
         parameters = sql_line.split(' ')
+        default_value = self.find_parameter_default(parameter_line)
         return {'original_line': parameter_line, 'parameter_type': parameters[2],
-                'parameter': parameters[1], 'prompt': prompt}
+                'parameter': parameters[1], 'prompt': prompt, 'default_value': default_value}
 
     @staticmethod
     def prompt_user(prompt_data: list[dict[str, str]]) -> None:
@@ -53,7 +61,10 @@ class ParseSqlParameters:
             response = input(prompt_value + ' ')
             if not response.isnumeric():
                 if not response == 'NULL':
-                    response = f"'{response}'"
+                    if prompt['default_value']:
+                        response = prompt['default_value']
+                    else:
+                        response = f"'{response}'"
             prompt['response'] = prompt['original_line'].replace('<value>', response)
 
     @staticmethod
