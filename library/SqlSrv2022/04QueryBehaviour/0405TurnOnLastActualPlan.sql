@@ -1,0 +1,5 @@
+----- Enabling last query plan stats, ALTER DATABASE not allowed here.
+--- ALTER DATABASE SCOPED CONFIGURATION SET LAST_QUERY_PLAN_STATS = ON;
+--- with results columns
+SELECT 'Execute ''ALTER DATABASE SCOPED CONFIGURATION SET LAST_QUERY_PLAN_STATS = ON;'' in SSMS' AS Text
+
