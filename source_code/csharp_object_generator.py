@@ -147,3 +147,22 @@ class CSharpObjectGenerator:
         print('ex : ', exception)
         tb = traceback.TracebackException.from_exception(exception)
         print(''.join(tb.stack.format()))
+
+    def convert_snake_to_pascal_case(self, input_text) ->  str:
+        res = ''.join(word.capitalize() for word in input_text.split('_'))
+        return res
+
+    def convert_snake_to_camel_case(self, input_text) ->  str:
+        res = self.convert_snake_to_pascal_case(input_text)
+        first_letter = res[0]
+        res = first_letter.lower() + res[1:]
+        return res
+
+    @staticmethod
+    def convert_pascal_to_snake_case(input_text) ->  str:
+        output: str = ''
+        for letter in input_text:
+            if letter.isupper() and output:
+                output += '_'
+            output += letter.lower()
+        return output
