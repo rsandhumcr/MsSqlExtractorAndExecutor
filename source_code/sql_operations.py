@@ -5,11 +5,13 @@ from source_code.file_operations import FileOperations
 from source_code.script_generator import ScriptGenerator
 from source_code.database_operations import DatabaseOperations
 from source_code.csharp_object_generator import CSharpObjectGenerator
+from source_code.csharp_object_generatorV2 import CSharpObjectGeneratorV2
 
 file_operations = FileOperations()
 databaseSelector = DatabaseOperations()
 script_generator = ScriptGenerator()
 csharp_generator = CSharpObjectGenerator()
+csharp_generatorV2 = CSharpObjectGeneratorV2()
 
 class SqlOperations:
     type RelationQuery = list[dict[str, str] | None]
@@ -32,7 +34,7 @@ class SqlOperations:
                 foreign_keys_str = self.format_foreign_keys(foreign_keys)
                 has_foreign_keys = True
             columns_info = [f"{column_index} {key_marker}", table_columns['name'],
-                            self.format_table_type(table_columns['type']), foreign_keys_str]
+                            self.format_table_type(table_columns['type']), foreign_keys_str, ]
 
             table_column_description.append(columns_info)
             count_columns += 1
@@ -213,6 +215,10 @@ class SqlOperations:
 
         if output_option == 'csharp':
             csharp_statement = csharp_generator.create_object_statement(db_name, table_name, row_data)
+            file_operations.write_to_file(output_path_file, csharp_statement)
+
+        if output_option == 'csharpV2':
+            csharp_statement = csharp_generatorV2.create_object_statement(db_name, table_name, row_data)
             file_operations.write_to_file(output_path_file, csharp_statement)
 
 
