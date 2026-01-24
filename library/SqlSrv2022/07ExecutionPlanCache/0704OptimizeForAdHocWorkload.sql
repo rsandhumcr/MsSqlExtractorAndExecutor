@@ -1,0 +1,17 @@
+----- Enabling optimize for ad hoc workloads
+----- EXEC sys.sp_configure 'show advanced option', '1';
+----- GO
+----- RECONFIGURE;
+----- GO
+----- EXEC sys.sp_configure 'optimize for ad hoc workloads', 1;
+----- GO
+----- RECONFIGURE;
+
+----- Disabling optimize for ad hoc workloads
+----- EXEC sp_configure 'optimize for ad hoc workloads', 0;
+----- GO
+----- RECONFIGURE;
+----- GO
+----- EXEC sp_configure 'show advanced option', '0';
+----- GO
+----- RECONFIGURE;
