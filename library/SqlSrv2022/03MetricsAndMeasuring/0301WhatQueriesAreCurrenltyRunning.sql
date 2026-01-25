@@ -1,6 +1,5 @@
 --- with results columns
-SELECT
-    s.login_name,
+SELECT s.login_name,
     r.command,
     r.status,
     r.start_time,
@@ -19,13 +18,8 @@ SELECT
     r.wait_type,
     r.wait_time,
     r.last_wait_type
-FROM
-    sys.dm_exec_requests r
-INNER JOIN
-    sys.dm_exec_sessions s ON r.session_id = s.session_id
-CROSS APPLY
-    sys.dm_exec_sql_text(r.sql_handle) AS q
-WHERE
-    r.start_time >= DATEADD(DAY, -1, GETDATE()) -- Queries executed in the last 24 hours
-ORDER BY
-    r.start_time DESC;
+FROM sys.dm_exec_requests r
+    INNER JOIN sys.dm_exec_sessions s ON r.session_id = s.session_id
+    CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) AS q
+WHERE r.start_time >= DATEADD(DAY, -1, GETDATE()) -- Queries executed in the last 24 hours
+ORDER BY r.start_time DESC;
