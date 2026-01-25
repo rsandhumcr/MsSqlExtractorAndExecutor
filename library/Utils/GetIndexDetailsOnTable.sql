@@ -1,5 +1,5 @@
 --- parameters start
-DECLARE @THETABLE varchar(100) = < value >;--- What is the table name ?
+DECLARE @THETABLE varchar(100) = <value>;--- What is the table name ?
 --- parameters end
 --- with results columns
 ;

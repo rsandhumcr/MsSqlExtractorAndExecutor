@@ -1,5 +1,5 @@
 --- parameters start
-DECLARE @MinutesAgo INT = < value >;--- How many minutes ago [30] ?
+DECLARE @MinutesAgo INT = <value>;--- How many minutes ago [30] ?
 --- parameters end
 --- with results columns
 SELECT top 100 sdest.DatabaseName,

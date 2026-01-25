@@ -1,5 +1,5 @@
 --- parameters start
-DECLARE @search_term VARCHAR(100) = < value >;--- Enter Table Name ?
+DECLARE @search_term VARCHAR(100) = <value>;--- Enter Table Name ?
 --- parameters end
 --- with results
 SELECT *
