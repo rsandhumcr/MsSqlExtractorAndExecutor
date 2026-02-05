@@ -1,5 +1,5 @@
 --- parameters start
-DECLARE @search_term VARCHAR(100) = <value>;--- What column name are you searching for ?
+DECLARE @search_term VARCHAR(100) = <value>;--- What table name are you searching for ?
 --- parameters end
 --- with results
 DECLARE @search_word VARCHAR(102) = '%' + @search_term + '%';
