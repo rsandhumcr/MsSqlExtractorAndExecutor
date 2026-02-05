@@ -4,6 +4,7 @@ from source_code.file_operations import FileOperations
 from source_code.parse_sql_parameters import ParseSqlParameters
 from source_code.user_options import UserOptions
 from source_code.sql_operations import SqlOperations
+from sqlalchemy.engine import URL
 
 library_path = 'library'
 
@@ -19,7 +20,7 @@ def get_current_timestamp() -> str:
     return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
 
 
-def execute_command() -> None:
+def execute_command_selection() -> None:
     db_config = user_options.get_database_config()
     selected_file = 'initial'
 
@@ -43,13 +44,15 @@ def execute_command() -> None:
             full_path = f"{new_path}\\{selected_file}"
             sql_script = file_operations.read_file(full_path)
             script_data = parse_sql_parameters.replace_parameters_with_prompts(sql_script)
+            if db_config == None:
+                print("There was an issue with the database configuration. Please check the configuration file and try again.")
             if script_data['return_results']:
                 execute_script_with_result(db_config, script_data, selected_file)
             else:
                 databaseSelector.execute_sql_script_no_data(db_config, script_data['sql_script'])
 
 
-def execute_script_with_result(db_config, script_data: dict[str, str], selected_file) -> None:
+def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[str, str], selected_file) -> None:
     windows_end_line = True
     data_rows = databaseSelector.execute_sql_script_raw_connection(db_config, script_data['sql_script'])
     if len(data_rows) > 0:
@@ -98,4 +101,4 @@ def print_and_write_to_file(file_name: str, data_output_str: str, make_windows_e
 
 
 if __name__ == '__main__':
-    execute_command()
+    execute_command_selection()
