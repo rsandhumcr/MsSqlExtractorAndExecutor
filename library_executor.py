@@ -27,6 +27,7 @@ def execute_command_selection() -> None:
     new_path = library_path
 
     while selected_file != '> Abort execution':
+        print(f"Database : {db_config['db_name']}")
         selected_file = user_options.get_files_in_directory(new_path)
         if selected_file == '> Abort execution':
             exit()
