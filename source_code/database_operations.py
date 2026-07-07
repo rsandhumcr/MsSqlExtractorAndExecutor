@@ -36,7 +36,7 @@ class DatabaseOperations:
             return conn
         except Exception as exc:
             self.handle_general_exceptions('get_connection_object', exc)
-            exit()
+            #exit()
 
     def get_azure_cli_auth_token(self) -> bytes:
         credential = AzureCliCredential()
@@ -63,10 +63,10 @@ class DatabaseOperations:
             self.handle_general_exceptions('get_raw_connection_object', exc)
             exit()
 
-    def get_database(self) -> list[Any] | None:
+    def get_database(self, database_config: dict[str, str|URL]) -> list[Any] | None:
         try:
             query = 'SELECT name FROM sys.sysdatabases ORDER BY name'
-            result_set = self.execute_sql_script(None, query)
+            result_set = self.execute_sql_script(database_config, query)
             database_names = []
             for row in result_set['data']:
                 database_names.append(row[0])

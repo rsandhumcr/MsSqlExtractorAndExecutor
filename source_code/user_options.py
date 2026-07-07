@@ -65,6 +65,12 @@ class UserOptions:
         except Exception as exc:
             self.handle_general_exceptions('get_database_name', exc)
 
+    def get_database_config_via_name(self, db_name: str) -> dict[str, str|URL]:
+        try:
+            return database_config.get_connection(db_name)
+        except Exception as exc:
+            self.handle_general_exceptions('get_database_config_via_name', exc)
+
     @staticmethod
     def get_database_names() -> list[str]:
 

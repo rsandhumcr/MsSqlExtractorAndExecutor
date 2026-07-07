@@ -222,25 +222,23 @@ class SqlOperations:
             file_operations.write_to_file(output_path_file, csharp_statement)
 
 
-    def check_database_table_names(self, db_name: str, table_name: str) -> bool:
+    def check_database_table_names(self, db_config: dict[str, str|URL], table_name: str) -> bool:
         try:
-            database_name = databaseSelector.get_database()
             data_is_ok = True
-            if db_name not in str(database_name):
+            if db_config is None:
                 data_is_ok = False
-                print(f"Database '{db_name}' not found\nDatabase names :")
-                print(database_name)
+                print(f"Database '{db_config}' not found\nDatabase names :")
             else:
                 table_name_parts = table_name.split('.')
                 table_name_part = table_name_parts[0]
                 if len(table_name_parts) == 2:
                     table_name_part = table_name_parts[1]
-                schema_table_name = databaseSelector.search_table_name(db_name, table_name_part)
+                schema_table_name = databaseSelector.search_table_name(db_config, table_name_part)
                 search_name = self.format_table_names(table_name)
                 if search_name not in str(schema_table_name):
                     data_is_ok = False
                     print(f"Table '{table_name}' not found")
-                    schema_table_name = databaseSelector.search_table_name(db_name, table_name_part[:3])
+                    schema_table_name = databaseSelector.search_table_name(db_config, table_name_part[:3])
                     if len(schema_table_name) > 0:
                         print("Table/s with similar name")
                         print(schema_table_name)

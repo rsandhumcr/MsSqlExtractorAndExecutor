@@ -73,9 +73,10 @@ def execute_extract_from_cmdline() -> None:
         output_file = args[6]
     db_name = args[1]
     table_name = args[2]
-    name_check = sql_operations.check_database_table_names(db_name, table_name)
+    db_config = user_options.get_database_config_via_name(db_name)
+    name_check = sql_operations.check_database_table_names(db_config, table_name)
     if name_check:
-        sql_operations.extract_table_data(output_file, db_name, table_name, args[3], args[4], include_mapped_tables, [])
+        sql_operations.extract_table_data(output_file, db_config, table_name, args[3], args[4], include_mapped_tables, [])
         print(f"Output file : {output_file}")
 
 

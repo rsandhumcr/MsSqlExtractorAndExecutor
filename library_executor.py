@@ -27,7 +27,7 @@ def execute_command_selection() -> None:
     new_path = library_path
 
     while selected_file != '> Abort execution':
-        print(f"Database : {db_config['db_name']}")
+        print(f"Database (name) : {db_config['db_name']}")
         selected_file = user_options.get_files_in_directory(new_path)
         if selected_file == '> Abort execution':
             exit()
@@ -56,6 +56,7 @@ def execute_command_selection() -> None:
 def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[str, str], selected_file) -> None:
     windows_end_line = True
     data_rows = databaseSelector.execute_sql_script_raw_connection(db_config, script_data['sql_script'])
+    print_and_write_to_file(output_file, f"Db : {db_config['db_name']}\r\n", windows_end_line)
     if len(data_rows) > 0:
         no_of_result_sets = len(data_rows)
         no_of_rows: int = len(data_rows[0]['data'])
@@ -84,7 +85,7 @@ def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[
         for data_row in data_rows:
             result_set_count += 1
             if no_of_result_sets > 1:
-                print_and_write_to_file(output_file, f"Result set {result_set_count}", windows_end_line)
+                print_and_write_to_file(output_file, f"Result set {result_set_count}\r\n", windows_end_line)
             data_output_str = SqlOperations.show_table_results(result_set_count, selected_file,
                                                                is_columns, data_row, show_headers)
             current_time = get_current_timestamp()
