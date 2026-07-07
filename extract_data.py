@@ -83,13 +83,14 @@ def execute_extract_from_cmdline() -> None:
 def show_table_info() -> None:
     args = sys.argv
     db_name = args[1]
+    db_config = user_options.get_database_config_via_name(db_name)
     table_name = args[2]
     table_name_parts = table_name.split('.')
     if len(table_name_parts) == 1:
         table_name = 'dbo.' + table_name
-    name_check = sql_operations.check_database_table_names(db_name, table_name)
+    name_check = sql_operations.check_database_table_names(db_config, table_name)
     if name_check:
-        table_info = databaseSelector.get_table_meta_data_simple_string(db_name, table_name)
+        table_info = databaseSelector.get_table_meta_data_simple_string(db_config, table_name)
         sql_operations.print_table_info(table_name, table_info)
 
 
