@@ -209,8 +209,12 @@ class SqlOperations:
             update_statement = script_generator.create_update_statement(db_name, table_name, row_data, primary_columns)
             file_operations.write_to_file(output_path_file, update_statement)
 
+        if output_option == 'insertAdd':
+            insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data, True)
+            file_operations.write_to_file(output_path_file, insert_statement)
+
         if output_option == 'insert' or output_option == 'update and insert':
-            insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data)
+            insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data, False)
             file_operations.write_to_file(output_path_file, insert_statement)
 
         if output_option == 'csharp':

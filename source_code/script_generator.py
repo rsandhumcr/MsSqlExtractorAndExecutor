@@ -10,10 +10,10 @@ def get_current_timestamp() -> str:
 class ScriptGenerator:
 
     def create_insert_statement(self, database_name: str, table_name: str,
-                                table_data: DatabaseOperations.TableRecords) -> str:
+                                table_data: DatabaseOperations.TableRecords, add_record: bool) -> str:
         try:
             show_identity_statement = self.has_table_columns_have_autoincrement(table_data)
-
+            auto_columns = self.get_table_columns_are_autoincrement(table_data)
             query = table_data['query']
             output_sql = f'---   {query} \n'
             output_sql += f'---   USE {database_name}; \n'
@@ -27,27 +27,40 @@ class ScriptGenerator:
             loop_counter = 0
 
             column_text = ''
-            for column in table_data['columns']:
+            auto_row_index = []
+            for row_index, column in enumerate(table_data['columns']):
                 if len(column_text) > 0:
                     column_text += ' ,'
-                column_text += f"[{column['name']}] "
+                is_auto_row = column['name'] in auto_columns
+                if is_auto_row:
+                    auto_row_index.append(row_index)
+                if add_record and is_auto_row == False:
+                    column_text += f"[{column['name']}] "
+                if not add_record:
+                    column_text += f"[{column['name']}] "
                 loop_counter += 1
                 if loop_counter >= loop_break_index:
                     column_text += '\n    '
                     loop_counter = 0
 
             output_sql += f' {column_text})\n    VALUES \n'
-
             loop_counter = 0
             data_text = ''
             for row_index, dataRow in enumerate(table_data['data']):
                 if row_index > 0:
                     data_text += ', \n    '
                 data_text += '    ('
+                add_to_new_row = False
                 for column_index, data in enumerate(dataRow):
-                    if column_index > 0:
+                    is_auto_row = column_index in auto_row_index
+                    if add_to_new_row:
                         data_text += ' ,'
-                    data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
+                    if add_record and is_auto_row == False:
+                        data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
+                        add_to_new_row = True
+                    if not add_record:
+                        data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
+                        add_to_new_row = True
                     loop_counter += 1
                     if loop_counter >= loop_break_index:
                         data_text += '\n    '
@@ -131,6 +144,14 @@ class ScriptGenerator:
                     has_autoincrement = True
                     break
         return has_autoincrement
+
+    @staticmethod
+    def get_table_columns_are_autoincrement(table_data: DatabaseOperations.TableRecords) -> [str]:
+        autoincrement_columns = []
+        for dataRow in table_data['columns']:
+            if dataRow['autoincrement']:
+                autoincrement_columns.append(dataRow['name'])
+        return autoincrement_columns
 
     def format_row_data_type_with_column(self, row_data: any,
                                          column_data: DatabaseOperations.TableMetadataItem) -> str:
