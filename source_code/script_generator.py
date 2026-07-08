@@ -17,9 +17,10 @@ class ScriptGenerator:
             query = table_data['query']
             output_sql = f'---   {query} \n'
             output_sql += f'---   USE {database_name}; \n'
-            output_sql += f'IF NOT EXISTS( {query})   \n'
-            output_sql += f' BEGIN  \n'
-            if show_identity_statement:
+            if not add_record:
+                output_sql += f'IF NOT EXISTS( {query})   \n'
+                output_sql += f' BEGIN  \n'
+            if add_record == False and show_identity_statement:
                 output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
             output_sql += f'--- INSERT INTO [{database_name}].{table_name} (\n '
             output_sql += f'   INSERT INTO {table_name} (\n  '
@@ -69,9 +70,10 @@ class ScriptGenerator:
                 loop_counter = 0
 
             output_sql += f'  {data_text};\n\n'
-            if show_identity_statement:
+            if add_record == False and show_identity_statement:
                 output_sql += f'   SET IDENTITY_INSERT {table_name} OFF; \n'
-            output_sql += f' END  \n\n'
+            if not add_record:
+                output_sql += f' END  \n\n'
             output_sql += get_current_timestamp()
             return output_sql
         except Exception as exc:
