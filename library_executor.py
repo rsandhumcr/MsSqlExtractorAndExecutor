@@ -74,7 +74,7 @@ def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[
                 data_output = f'   {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}'
                 print_and_write_to_file(output_file, data_output, True)
 
-        is_columns = True
+        is_columns = 'Columns'
         if script_data['result_in_columns'] is None:
             if no_of_rows > 1 or no_of_result_sets > 1:
                 is_columns = user_options.select_row_or_columns_result()
@@ -86,8 +86,15 @@ def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[
             result_set_count += 1
             if no_of_result_sets > 1:
                 print_and_write_to_file(output_file, f"Result set {result_set_count}\r\n", windows_end_line)
-            data_output_str = SqlOperations.show_table_results(result_set_count, selected_file,
-                                                               is_columns, data_row, show_headers)
+            if is_columns == 'Columns':
+                data_output_str = SqlOperations.show_table_result_columns(result_set_count, selected_file,
+                                                                   data_row, show_headers)
+            if is_columns == 'Rows':
+                data_output_str = SqlOperations.show_table_result_rows(result_set_count, data_row, show_headers)
+
+            if is_columns == 'CSV':
+                data_output_str = SqlOperations.show_table_result_csv(data_row)
+
             current_time = get_current_timestamp()
             output_data = f'Start {current_time} \r\n{data_output_str} \r\nEnd {current_time}'
             print_and_write_to_file(output_file, output_data, windows_end_line)

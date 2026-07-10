@@ -91,12 +91,15 @@ class ParseSqlParameters:
         with_return_results = self.check_for_return_results_marker(sql_script_input)
         with_columns = self.check_for_columns_results_marker(sql_script_input)
         with_rows = self.check_for_rows_results_marker(sql_script_input)
+        with_csv = self.check_for_csv_results_marker(sql_script_input)
         no_headers = self.check_for_columns_no_headers_marker(sql_script_input)
         set_result_types = None
         if with_columns:
-            set_result_types = True
+            set_result_types = 'Columns'
         if with_rows:
-            set_result_types = False
+            set_result_types = 'Rows'
+        if with_csv:
+            set_result_types = 'CSV'
         return {'sql_script': adjusted_sql, 'return_results': with_return_results,
                 'result_in_columns': set_result_types, 'no_headers': no_headers, 'parameter_values': parameter_value}
 
@@ -108,6 +111,9 @@ class ParseSqlParameters:
 
     def check_for_rows_results_marker(self, sql_script_input: str) -> bool:
         return self.search_script_for_text(sql_script_input, '--- with results rows')
+
+    def check_for_csv_results_marker(self, sql_script_input: str) -> bool:
+        return self.search_script_for_text(sql_script_input, '--- with results csv')
 
     def check_for_columns_no_headers_marker(self, sql_script_input: str) -> bool:
         return self.search_script_for_text(sql_script_input, '--- with results rows no headers')

@@ -265,49 +265,80 @@ class SqlOperations:
         return output_table_name
 
     @staticmethod
-    def show_table_results(result_set_index: int, script_name: str, show_columns: bool,
+    def show_table_result_rows(result_set_index: int,
                            data_rows: dict[str, list[any]], show_headers) -> str:
         row_no = 1
         no_of_records = len(data_rows['data'])
         if no_of_records == 0:
             return ''
         data_output = ''
-        if show_columns:
-            max_len_column = 0
-            data_row = data_rows['data'][0]
-            for colindex, column in enumerate(data_row):
-                current_len = len(data_rows['columns'][colindex])
-                if max_len_column < current_len:
-                    max_len_column = current_len
-
-            max_len_type = 0
-            for type_index, type_name in enumerate(data_row):
-                current_len = len(data_rows['types'][type_index])
-                if max_len_type < current_len:
-                    max_len_type = current_len
-            data_output += f'---- Start {script_name} \r\n'
-            for data_row in data_rows['data']:
-                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
-                for colindex, column in enumerate(data_row):
-                    column_name = str(data_rows['columns'][colindex])
-                    extended_column_name = column_name.ljust(max_len_column, ' ')
-                    type_name = str(data_rows['types'][colindex])
-                    extended_type_name = type_name.ljust(max_len_type, ' ')
-                    data_output += extended_column_name + '  :  ' + str(extended_type_name) + '  :  ' + str(column) + ' \r\n'
-                row_no += 1
-            data_output += f'---- End {script_name}  \r\n'
-        else:
+        if show_headers:
+            data_output += 'Columns \r\n'
+            data_output += str(data_rows['columns']) + ' \r\n'
+            data_output += str(data_rows['types']) + ' \r\n'
+        data_output += 'Rows \r\n'
+        for data_row in data_rows['data']:
             if show_headers:
-                data_output += 'Columns \r\n'
-                data_output += str(data_rows['columns']) + ' \r\n'
-                data_output += str(data_rows['types']) + ' \r\n'
-            data_output += 'Rows \r\n'
-            for data_row in data_rows['data']:
-                if show_headers:
-                    data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
-                data_output += str(data_row) + ' \r\n'
-                row_no += 1
+                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
+            data_output += str(data_row) + ' \r\n'
+            row_no += 1
         data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'
+        return data_output
+
+    @staticmethod
+    def show_table_result_columns(result_set_index: int, script_name: str,
+                           data_rows: dict[str, list[any]], show_headers) -> str:
+        row_no = 1
+        no_of_records = len(data_rows['data'])
+        if no_of_records == 0:
+            return ''
+        data_output = ''
+        max_len_column = 0
+        data_row = data_rows['data'][0]
+        for colindex, column in enumerate(data_row):
+            current_len = len(data_rows['columns'][colindex])
+            if max_len_column < current_len:
+                max_len_column = current_len
+
+        max_len_type = 0
+        for type_index, type_name in enumerate(data_row):
+            current_len = len(data_rows['types'][type_index])
+            if max_len_type < current_len:
+                max_len_type = current_len
+        data_output += f'---- Start {script_name} \r\n'
+        for data_row in data_rows['data']:
+            data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
+            for colindex, column in enumerate(data_row):
+                column_name = str(data_rows['columns'][colindex])
+                extended_column_name = column_name.ljust(max_len_column, ' ')
+                type_name = str(data_rows['types'][colindex])
+                extended_type_name = type_name.ljust(max_len_type, ' ')
+                data_output += extended_column_name + '  :  ' + str(extended_type_name) + '  :  ' + str(column) + ' \r\n'
+            row_no += 1
+        data_output += f'---- End {script_name}  \r\n'
+        data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'
+        return data_output
+
+    @staticmethod
+    def show_table_result_csv(data_rows: dict[str, list[any]]) -> str:
+        row_no = 1
+        no_of_records = len(data_rows['data'])
+        if no_of_records == 0:
+            return ''
+        data_output = ''
+        for column_index, column_data in enumerate(data_rows['columns']):
+            if column_index > 0:
+                data_output += ','
+            data_output += str(column_data)
+
+        data_output += f'\r\n'
+        for column_index, column_data in enumerate(data_rows['data']):
+            for row_index, row_data in enumerate(column_data):
+                if row_index > 0:
+                    data_output += ','
+                data_output += str(row_data)
+            row_no += 1
+            data_output += f'\r\n'
         return data_output
 
     @staticmethod

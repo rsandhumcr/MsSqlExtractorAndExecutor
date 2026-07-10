@@ -98,8 +98,8 @@ class UserOptions:
         print(''.join(tb.stack.format()))
 
     @staticmethod
-    def select_row_or_columns_result() -> bool:
+    def select_row_or_columns_result() -> str:
         is_columns = questionary.select(
             "Select a columns or rows result format",
-            choices=['Rows', 'Columns']).ask()  # returns value of selection
-        return bool(is_columns == 'Columns')
+            choices=['Rows', 'Columns', 'CSV']).ask()  # returns value of selection
+        return is_columns
