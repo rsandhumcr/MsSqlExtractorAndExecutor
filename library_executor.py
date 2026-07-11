@@ -8,14 +8,13 @@ from source_code.sql_operations import SqlOperations
 from sqlalchemy.engine import URL
 
 library_path = 'library'
+output_file = 'output\\execution.txt'
 
 databaseSelector = DatabaseOperations()
 file_operations = FileOperations()
 parse_sql_parameters = ParseSqlParameters()
 user_options = UserOptions()
 SqlOperations = SqlOperations()
-output_file = 'output\\execution.txt'
-
 
 def get_current_timestamp() -> str:
     return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
@@ -60,53 +59,61 @@ def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[
     windows_end_line = True
     data_rows = databaseSelector.execute_sql_script_raw_connection(db_config, script_data['sql_script'])
     print_and_write_to_file(output_file, f"Db : {db_config['db_name']}\r\n", windows_end_line)
-    if len(data_rows) > 0:
-        no_of_result_sets = len(data_rows)
-        no_of_rows: int = len(data_rows[0]['data'])
-        if no_of_result_sets == 1 and no_of_result_sets == 1:
-            data_output = f'{selected_file}\r\nYou have {no_of_rows} row/s\r\n' + script_data['parameter_values']
-            print_and_write_to_file(output_file, data_output, windows_end_line)
-        else:
-            print_and_write_to_file(output_file, f'You have:', windows_end_line)
-            for result_index, data_row in enumerate(data_rows):
-                no_of_rows = len(data_rows[result_index]['data'])
-                no_of_columns = len(data_rows[result_index]['columns'])
-                row_label = 'rows'
-                if no_of_rows == 1:
-                    row_label = 'row '
-                data_output = f'   {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}'
-                print_and_write_to_file(output_file, data_output, True)
-
-        is_columns = 'Columns'
-        if script_data['result_in_columns'] is None:
-            if no_of_rows > 1 or no_of_result_sets > 1:
-                is_columns = user_options.select_row_or_columns_result()
-        else:
-            is_columns = script_data['result_in_columns']
-        result_set_count = 0
-        show_headers = not script_data['no_headers']
-        for data_row in data_rows:
-            result_set_count += 1
-            if no_of_result_sets > 1:
-                print_and_write_to_file(output_file, f"Result set {result_set_count}\r\n", windows_end_line)
-
-            if is_columns == 'Columns':
-                data_output_str = SqlOperations.show_table_result_columns(result_set_count, selected_file,
-                                                                   data_row, show_headers)
-            if is_columns == 'Rows':
-                data_output_str = SqlOperations.show_table_result_rows(result_set_count, data_row, show_headers)
-
-            if is_columns == 'CSV':
-                data_output_str = SqlOperations.show_table_result_csv(data_row)
-
-            if data_output_str is not None:
-                write_to_file(specific_output_file, data_output_str, windows_end_line)
-
-            current_time = get_current_timestamp()
-            output_data = f'Start {current_time} \r\n{data_output_str} \r\nEnd {current_time}'
-            print_and_write_to_file(output_file, output_data, windows_end_line)
-    else:
+    if len(data_rows) == 0:
         print_and_write_to_file(output_file, 'No Data Returned', windows_end_line)
+        return
+
+    no_of_result_sets = len(data_rows)
+    no_of_rows: int = len(data_rows[0]['data'])
+    if no_of_result_sets == 1 and no_of_result_sets == 1:
+        data_output = f'{selected_file}\r\nYou have {no_of_rows} row/s\r\n' + script_data['parameter_values']
+        print_and_write_to_file(output_file, data_output, windows_end_line)
+    else:
+        print_and_write_to_file(output_file, f'You have:', windows_end_line)
+        for result_index, data_row in enumerate(data_rows):
+            no_of_rows = len(data_rows[result_index]['data'])
+            no_of_columns = len(data_rows[result_index]['columns'])
+            row_label = 'rows'
+            if no_of_rows == 1:
+                row_label = 'row '
+            data_output = f'   {no_of_rows} {row_label}, {no_of_columns} columns in result set {result_index + 1}'
+            print_and_write_to_file(output_file, data_output, True)
+
+    is_columns = 'Columns'
+    if script_data['result_in_columns'] is None:
+        if no_of_rows > 1 or no_of_result_sets > 1:
+            is_columns = user_options.select_row_or_columns_result()
+    else:
+        is_columns = script_data['result_in_columns']
+    result_set_count = 0
+    show_headers = not script_data['no_headers']
+    for data_row in data_rows:
+        result_set_count += 1
+        if no_of_result_sets > 1:
+            print_and_write_to_file(output_file, f"Result set {result_set_count}\r\n", windows_end_line)
+
+        outputted_data = False
+        if is_columns == 'Columns':
+            data_output_str = SqlOperations.show_table_result_columns(result_set_count, selected_file, data_row, show_headers)
+            outputted_data=True
+
+        if is_columns == 'Rows':
+            data_output_str = SqlOperations.show_table_result_rows(result_set_count, data_row, show_headers)
+            outputted_data = True
+
+        if is_columns == 'CSV':
+            data_output_str = SqlOperations.show_table_result_csv(data_row)
+            outputted_data = True
+
+        if not outputted_data:
+            data_output_str = SqlOperations.show_table_result_csv(data_row)
+
+        if data_output_str is not None:
+            write_to_file(specific_output_file, data_output_str, windows_end_line)
+
+        current_time = get_current_timestamp()
+        output_data = f'Start {current_time} \r\n{data_output_str} \r\nEnd {current_time}'
+        print_and_write_to_file(output_file, output_data, windows_end_line)
 
 
 def write_to_file(file_name: str, data_output_str: str, make_windows_end_line: bool) -> None:
@@ -123,7 +130,7 @@ def execute_commandline() -> None:
 
     db_name = args[1]
     db_config = user_options.get_database_config_via_name(db_name)
-    if db_config == None:
+    if db_config is None:
         print("There was an issue with the database configuration. Please check the configuration file and try again.")
 
     new_path = args[2]
