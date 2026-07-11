@@ -20,6 +20,8 @@ output_file = 'output\\execution.txt'
 def get_current_timestamp() -> str:
     return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n"
 
+def get_file_timestamp() -> str:
+    return f"{datetime.today().strftime('%Y%m%d_%H%M%S')}"
 
 def execute_command_selection() -> None:
     db_config = user_options.get_database_config()
@@ -98,7 +100,7 @@ def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[
                 data_output_str = SqlOperations.show_table_result_csv(data_row)
 
             if data_output_str is not None:
-                print_and_write_to_file(specific_output_file, data_output_str, windows_end_line)
+                write_to_file(specific_output_file, data_output_str, windows_end_line)
 
             current_time = get_current_timestamp()
             output_data = f'Start {current_time} \r\n{data_output_str} \r\nEnd {current_time}'
@@ -107,11 +109,14 @@ def execute_script_with_result(db_config: dict[str, str|URL], script_data: dict[
         print_and_write_to_file(output_file, 'No Data Returned', windows_end_line)
 
 
-def print_and_write_to_file(file_name: str, data_output_str: str, make_windows_end_line: bool) -> None:
-    print(data_output_str)
+def write_to_file(file_name: str, data_output_str: str, make_windows_end_line: bool) -> None:
     if make_windows_end_line:
         data_output_str = data_output_str.replace('\r\n', '\n')
     file_operations.write_to_file(file_name, data_output_str)
+
+def print_and_write_to_file(file_name: str, data_output_str: str, make_windows_end_line: bool) -> None:
+    print(data_output_str)
+    write_to_file(file_name, data_output_str, make_windows_end_line)
 
 def execute_commandline() -> None:
     args = sys.argv
@@ -127,6 +132,9 @@ def execute_commandline() -> None:
     specific_output_file = None
     if len(args) > 4:
         specific_output_file = args[4]
+        if specific_output_file.find("TIMESTAMP") != -1:
+            timestamp = get_file_timestamp()
+            specific_output_file = specific_output_file.replace("TIMESTAMP", timestamp)
         specific_output_file = f".\\output\\{specific_output_file}"
 
     full_path = f".\\library\\{new_path}\\{selected_file}"
@@ -138,7 +146,11 @@ def execute_commandline() -> None:
         databaseSelector.execute_sql_script_no_data(db_config, script_data['sql_script'])
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
+    no_of_args = len(sys.argv)
+    if no_of_args == 1:
         execute_command_selection()
     else:
-        execute_commandline()
+        if no_of_args == 4 or no_of_args == 5 :
+            execute_commandline()
+        else:
+            print("Invalid number of arguments. Please provide 4 or 5 arguments.\npy .\\library_executor.py <DbConfig> <directory> <script> [output file | 'TIMESTAMP' ]")
