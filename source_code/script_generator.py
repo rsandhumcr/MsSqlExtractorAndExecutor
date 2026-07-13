@@ -6,7 +6,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.sql.type_api import TypeEngine
 
 from source_code.database_operations import DatabaseOperations
-
+from tqdm import tqdm
 
 def get_current_timestamp() -> str:
     return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n\r\n"
@@ -53,7 +53,9 @@ class ScriptGenerator:
             loop_counter = 0
             data_text = ''
             bundle_count =0
-            for row_index, dataRow in enumerate(table_data['data']):
+            # for row_data in table_data['data']:
+            #for row_data in tqdm(table_data['data']):
+            for row_index, dataRow in enumerate(tqdm(table_data['data'])):
                 if bundle_count > 0:
                     data_text += ', \n    '
                 data_text += '    ('
@@ -103,7 +105,9 @@ class ScriptGenerator:
             output_sql += f'IF EXISTS( {query} ) \n'
             output_sql += f'BEGIN  \n\n'
 
-            for row_data in table_data['data']:
+            # for row_data in table_data['data']:
+            for row_data in tqdm(table_data['data']):
+
                 loop_break_index = 5
                 loop_counter = 0
                 output_sql += f'   UPDATE {table_name} \n'
@@ -154,7 +158,8 @@ class ScriptGenerator:
 
             output_sql = f' ---   {query} \n'
 
-            for row_data in table_data['data']:
+            #for row_data in table_data['data']:
+            for row_data in tqdm(table_data['data']):
 
                 where_text = ''
                 for loop_columns in range(0, number_of_columns):
