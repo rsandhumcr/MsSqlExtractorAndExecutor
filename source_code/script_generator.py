@@ -1,5 +1,10 @@
 from datetime import datetime
 import traceback
+from typing import Any, Literal
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.sql.type_api import TypeEngine
+
 from source_code.database_operations import DatabaseOperations
 
 
@@ -91,11 +96,7 @@ class ScriptGenerator:
                                 table_data: DatabaseOperations.TableRecords,
                                 primary_columns: DatabaseOperations.TableMetadata) -> str:
         try:
-            primary_column_index = []
-            for index, columns in enumerate(table_data['columns']):
-                for primary_column in primary_columns:
-                    if columns['name'] == primary_column['name']:
-                        primary_column_index.append(index)
+            primary_column_index = self.find_column_primary_indexes(primary_columns, table_data)
 
             number_of_columns = len(table_data['columns'])
 
@@ -144,6 +145,95 @@ class ScriptGenerator:
             return output_sql
         except Exception as exc:
             self.handle_general_exceptions('create_update_statement', exc)
+
+    def create_insert_pk_statement(self, database_name: str, table_name: str,
+                                table_data: DatabaseOperations.TableRecords,
+                                primary_columns: DatabaseOperations.TableMetadata) -> str:
+        try:
+            primary_column_index = self.find_column_primary_indexes(primary_columns, table_data)
+
+            number_of_columns = len(table_data['columns'])
+
+            query = table_data['query']
+
+            output_sql = f' ---   {query} \n'
+
+            for row_data in table_data['data']:
+
+                where_text = ''
+                for loop_columns in range(0, number_of_columns):
+                    if loop_columns in primary_column_index:
+                        if len(where_text) > 0:
+                            where_text += '\n    AND ,'
+                        column = table_data['columns'][loop_columns]['name']
+                        value = self.format_row_data_type_with_column(
+                            row_data[loop_columns], table_data['columns'][loop_columns])
+                        where_text += f"{column} = {value}"
+                output_sql += f'IF NOT EXISTS( SELECT * FROM {table_name} WHERE {where_text})\n'
+                output_sql +=f"BEGIN \n"
+
+                output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
+                insert_start_text = f'   INSERT INTO {table_name} (\n  '
+                loop_break_index = 5
+                loop_counter = 0
+
+                column_text = ''
+                for row_index, column in enumerate(table_data['columns']):
+                    if len(column_text) > 0:
+                        column_text += ' ,'
+                    column_text += f"[{column['name']}] "
+                    loop_counter += 1
+                    if loop_counter >= loop_break_index:
+                        column_text += '\n    '
+                        loop_counter = 0
+
+                columns_section_text = f' {column_text})\n    VALUES \n'
+                head_section_text = f' {insert_start_text} {columns_section_text}'
+                output_sql += head_section_text
+                loop_counter = 0
+                data_text = ''
+                bundle_count =0
+                for row_index, dataRow in enumerate(table_data['data']):
+                    if bundle_count > 0:
+                        data_text += ', \n    '
+                    data_text += '   ('
+                    add_to_new_row = False
+                    for column_index, data in enumerate(dataRow):
+
+                        if add_to_new_row:
+                            data_text += ' ,'
+                        data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
+                        add_to_new_row = True
+                        loop_counter += 1
+                        if loop_counter >= loop_break_index:
+                            data_text += '\n    '
+                            loop_counter = 0
+                    data_text += ')'
+                    bundle_count +=1
+                    if bundle_count >= 100:
+                        bundle_count =0
+                        data_text += f";\n   {head_section_text}"
+                    loop_counter = 0
+
+                output_sql += f'  {data_text};\n\n'
+                output_sql += f'   SET IDENTITY_INSERT {table_name} OFF; \n'
+                output_sql += f' END \n'
+
+            output_sql += get_current_timestamp()
+            return output_sql
+        except Exception as exc:
+            self.handle_general_exceptions('create_update_statement', exc)
+
+    def find_column_primary_indexes(self, primary_columns: list[
+        dict[str | int, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]], table_data: dict[
+        str | int, list[Any] | list[
+            dict[str, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]]]) -> list[Any]:
+        primary_column_index = []
+        for index, columns in enumerate(table_data['columns']):
+            for primary_column in primary_columns:
+                if columns['name'] == primary_column['name']:
+                    primary_column_index.append(index)
+        return primary_column_index
 
     @staticmethod
     def has_table_columns_have_autoincrement(table_data: DatabaseOperations.TableRecords) -> bool:

@@ -38,7 +38,7 @@ class UserOptions:
 
     @staticmethod
     def get_script_output_options() -> str:
-        execute_options = ['abort', 'insert', 'insertAdd', 'update', 'update and insert', 'csharp', 'csharpV2']
+        execute_options = ['abort', 'insert', 'insertAdd', 'insertPk','update', 'update and insert', 'csharp', 'csharpV2']
         selected_option = questionary.select(
             "Select an option",
             choices=execute_options).ask()  # returns value of selection

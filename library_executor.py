@@ -34,7 +34,6 @@ def execute_command_selection() -> None:
         if selected_file == '> Abort execution':
             exit()
         if selected_file == '> Database selection':
-            #db_name = user_options.get_database_name()
             db_config = user_options.get_database_config()
         elif selected_file == '> ..':
             if library_path != new_path:
@@ -50,7 +49,7 @@ def execute_command_selection() -> None:
             if db_config == None:
                 print("There was an issue with the database configuration. Please check the configuration file and try again.")
             if script_data['return_results']:
-                execute_script_with_result(db_config, script_data, selected_file)
+                execute_script_with_result(db_config, script_data, selected_file, 'testile.sql')
             else:
                 databaseSelector.execute_sql_script_no_data(db_config, script_data['sql_script'])
 
