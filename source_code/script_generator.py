@@ -21,14 +21,11 @@ class ScriptGenerator:
             auto_columns = self.get_table_columns_are_autoincrement(table_data)
             query = table_data['query']
             output_sql = f'---   {query} \n'
-            output_sql += f'---   USE {database_name}; \n'
             if not add_record:
                 output_sql += f'IF NOT EXISTS( {query})   \n'
                 output_sql += f' BEGIN  \n'
             if add_record == False and show_identity_statement:
                 output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
-            output_sql += f'--- INSERT INTO [{database_name}].{table_name} (\n '
-            ##output_sql += f'   INSERT INTO {table_name} (\n  '
             insert_start_text = f'   INSERT INTO {table_name} (\n  '
             loop_break_index = 5
             loop_counter = 0
@@ -109,7 +106,6 @@ class ScriptGenerator:
             for row_data in table_data['data']:
                 loop_break_index = 5
                 loop_counter = 0
-                output_sql += f'--- UPDATE [{database_name}].{table_name} \n'
                 output_sql += f'   UPDATE {table_name} \n'
                 output_sql += '    SET '
                 column_text = ''
@@ -192,14 +188,10 @@ class ScriptGenerator:
                 output_sql += head_section_text
                 loop_counter = 0
                 data_text = ''
-                bundle_count =0
                 for row_index, dataRow in enumerate(table_data['data']):
-                    if bundle_count > 0:
-                        data_text += ', \n    '
                     data_text += '   ('
                     add_to_new_row = False
                     for column_index, data in enumerate(dataRow):
-
                         if add_to_new_row:
                             data_text += ' ,'
                         data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
@@ -209,10 +201,6 @@ class ScriptGenerator:
                             data_text += '\n    '
                             loop_counter = 0
                     data_text += ')'
-                    bundle_count +=1
-                    if bundle_count >= 100:
-                        bundle_count =0
-                        data_text += f";\n   {head_section_text}"
                     loop_counter = 0
 
                 output_sql += f'  {data_text};\n\n'
