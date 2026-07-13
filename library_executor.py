@@ -49,7 +49,7 @@ def execute_command_selection() -> None:
             if db_config == None:
                 print("There was an issue with the database configuration. Please check the configuration file and try again.")
             if script_data['return_results']:
-                execute_script_with_result(db_config, script_data, selected_file, 'testile.sql')
+                execute_script_with_result(db_config, script_data, selected_file, None)
             else:
                 databaseSelector.execute_sql_script_no_data(db_config, script_data['sql_script'])
 
