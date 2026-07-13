@@ -23,7 +23,8 @@ class ScriptGenerator:
             if add_record == False and show_identity_statement:
                 output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
             output_sql += f'--- INSERT INTO [{database_name}].{table_name} (\n '
-            output_sql += f'   INSERT INTO {table_name} (\n  '
+            ##output_sql += f'   INSERT INTO {table_name} (\n  '
+            insert_start_text = f'   INSERT INTO {table_name} (\n  '
             loop_break_index = 5
             loop_counter = 0
 
@@ -44,11 +45,14 @@ class ScriptGenerator:
                     column_text += '\n    '
                     loop_counter = 0
 
-            output_sql += f' {column_text})\n    VALUES \n'
+            columns_section_text = f' {column_text})\n    VALUES \n'
+            head_section_text = f' {insert_start_text} {columns_section_text}'
+            output_sql += head_section_text
             loop_counter = 0
             data_text = ''
+            bundle_count =0
             for row_index, dataRow in enumerate(table_data['data']):
-                if row_index > 0:
+                if bundle_count > 0:
                     data_text += ', \n    '
                 data_text += '    ('
                 add_to_new_row = False
@@ -67,6 +71,10 @@ class ScriptGenerator:
                         data_text += '\n    '
                         loop_counter = 0
                 data_text += ')'
+                bundle_count +=1
+                if bundle_count >= 100:
+                    bundle_count =0
+                    data_text += f";\n   {head_section_text}"
                 loop_counter = 0
 
             output_sql += f'  {data_text};\n\n'
