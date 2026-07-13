@@ -159,7 +159,8 @@ class ScriptGenerator:
             output_sql = f' ---   {query} \n'
 
             #for row_data in table_data['data']:
-            for row_data in tqdm(table_data['data']):
+            for row_index_outter, row_data in enumerate(tqdm(table_data['data'])):
+            #for row_data in tqdm(table_data['data']):
 
                 where_text = ''
                 for loop_columns in range(0, number_of_columns):
@@ -193,24 +194,24 @@ class ScriptGenerator:
                 output_sql += head_section_text
                 loop_counter = 0
                 data_text = ''
-                for row_index, dataRow in enumerate(table_data['data']):
-                    data_text += '   ('
-                    add_to_new_row = False
-                    for column_index, data in enumerate(dataRow):
-                        if add_to_new_row:
-                            data_text += ' ,'
-                        data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
-                        add_to_new_row = True
-                        loop_counter += 1
-                        if loop_counter >= loop_break_index:
-                            data_text += '\n    '
-                            loop_counter = 0
-                    data_text += ')'
-                    loop_counter = 0
+
+                data_text += '   ('
+                add_to_new_row = False
+                for column_index, data in enumerate(row_data):
+                    if add_to_new_row:
+                        data_text += ' ,'
+                    data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
+                    add_to_new_row = True
+                    loop_counter += 1
+                    if loop_counter >= loop_break_index:
+                        data_text += '\n    '
+                        loop_counter = 0
+                data_text += ')'
 
                 output_sql += f'  {data_text};\n\n'
                 output_sql += f'   SET IDENTITY_INSERT {table_name} OFF; \n'
                 output_sql += f' END \n'
+                output_sql += f' ----Row {row_index_outter}\n\n'
 
             output_sql += get_current_timestamp()
             return output_sql
