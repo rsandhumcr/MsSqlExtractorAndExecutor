@@ -18,13 +18,13 @@ connection_config = {
         'use_azure_identity_entra': False,
     },
     'AdventureWorksLT2019_v01' : {
-        'db_name': 'AdventureWorksLT2019',
+        'db_name': 'AdventureWorks2019',
         'connection_str' : URL.create(
             "mssql+pyodbc",
             username="user02",
             password="user02",
             host=".",
-            database="AdventureWorksLT2019",
+            database="AdventureWorks2019",
             query={
                 "driver": "SQL Server",
             }),

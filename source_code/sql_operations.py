@@ -205,29 +205,41 @@ class SqlOperations:
         primary_columns = databaseSelector.get_primary_columns(row_data)
 
         print(f'Extracting : {db_name}.{table_name} WHERE {where_clause}')
-        if output_option == 'update' or output_option == 'update and insert':
+        if output_option == 'update' or output_option == 'update and insert' or output_option == 'update and insertAdd' or output_option == 'update and insertPk':
+            print(script_generator.time_stamp_message("Start update"))
             update_statement = script_generator.create_update_statement(db_name, table_name, row_data, primary_columns)
             file_operations.write_to_file(output_path_file, update_statement)
+            print(script_generator.time_stamp_message("End update"))
 
         if output_option == 'insertAdd' or output_option == 'update and insertAdd':
+            print(script_generator.time_stamp_message("Start insertAdd"))
             insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data, True)
             file_operations.write_to_file(output_path_file, insert_statement)
+            print(script_generator.time_stamp_message("End insertAdd"))
 
         if output_option == 'insertPk' or output_option == 'update and insertPk':
+            print(script_generator.time_stamp_message("Start insertPk"))
             insert_statement = script_generator.create_insert_pk_statement(db_name, table_name, row_data, primary_columns)
             file_operations.write_to_file(output_path_file, insert_statement)
+            print(script_generator.time_stamp_message("End insertPk"))
 
         if output_option == 'insert' or output_option == 'update and insert':
+            print(script_generator.time_stamp_message("Start insert"))
             insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data, False)
             file_operations.write_to_file(output_path_file, insert_statement)
+            print(script_generator.time_stamp_message("End insert"))
 
         if output_option == 'csharp':
+            print(script_generator.time_stamp_message("Start csharp"))
             csharp_statement = csharp_generator.create_object_statement(db_name, table_name, row_data)
             file_operations.write_to_file(output_path_file, csharp_statement)
+            print(script_generator.time_stamp_message("End csharp"))
 
         if output_option == 'csharpV2':
+            print(script_generator.time_stamp_message("Start csharpV2"))
             csharp_statement = csharp_generatorV2.create_object_statement(db_name, table_name, row_data)
             file_operations.write_to_file(output_path_file, csharp_statement)
+            print(script_generator.time_stamp_message("End csharpV2"))
 
 
     def check_database_table_names(self, db_config: dict[str, str|URL], table_name: str) -> bool:
@@ -351,3 +363,4 @@ class SqlOperations:
         print('ex : ', exception)
         tb = traceback.TracebackException.from_exception(exception)
         print(''.join(tb.stack.format()))
+
