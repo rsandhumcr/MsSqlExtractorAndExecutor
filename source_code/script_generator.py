@@ -313,3 +313,7 @@ class ScriptGenerator:
         print('ex : ', exception)
         tb = traceback.TracebackException.from_exception(exception)
         print(''.join(tb.stack.format()))
+
+    @staticmethod
+    def time_stamp_message(message: str) -> str:
+        return f"{message} - {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}"
