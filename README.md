@@ -90,3 +90,19 @@ Row mode will show the list collection of the python data structor, which saves 
 You can select the output mode by including '--- with results columns' for columns and '--- with results rows' for rows.
 
 You can use '--- with results rows no headers' to show rows format without header data output for smaller output.
+
+python -m venv E:\git\public\MsSqlExtractorAndExecutorV2
+
+C:\Users\Your Name> python -m venv myfirstproject
+
+cd E:\git\public\MsSqlExtractorAndExecutorV2
+
+Run this command to create a virtual environment named myfirstproject:
+C:\Users\Your Name> python -m venv myfirstproject
+py -m venv myfirstproject
+
+Activate the virtual environment:
+> myfirstproject\Scripts\activate
+
+from pprint import pprint
+pprint(vars(meta_data))
