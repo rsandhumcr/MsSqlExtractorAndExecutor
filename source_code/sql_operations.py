@@ -4,6 +4,8 @@ import traceback
 from source_code.file_operations import FileOperations
 from source_code.script_generator import ScriptGenerator
 from source_code.database_operations import DatabaseOperations
+from source_code.database_operations import TableColumn
+from source_code.database_operations import ResultSet
 from source_code.csharp_object_generator import CSharpObjectGenerator
 from source_code.csharp_object_generatorV2 import CSharpObjectGeneratorV2
 
@@ -17,24 +19,24 @@ class SqlOperations:
     type RelationQuery = list[dict[str, str] | None]
     type RelationQueryItem = dict[str, str] | None
 
-    def print_table_info(self, table_name: str, table_info: DatabaseOperations.TableMetadata) -> bool:
+    def print_table_info(self, table_name: str, table_info: TableColumn) -> bool:
         output_file='output\\execution.txt'
         has_foreign_keys = False
         table_column_description = []
         count_columns = 0
         for column_index, table_columns in enumerate(table_info):
             key_marker = ''
-            if table_columns['primary_key']:
+            if table_columns.primary_key:
                 key_marker += '+'
-            if table_columns['autoincrement']:
+            if table_columns.autoincrement:
                 key_marker += '*'
             foreign_keys_str = ''
-            foreign_keys = table_columns['foreign_keys']
+            foreign_keys = table_columns.foreign_keys
             if foreign_keys:
                 foreign_keys_str = self.format_foreign_keys(foreign_keys)
                 has_foreign_keys = True
-            columns_info = [f"{column_index} {key_marker}", table_columns['name'],
-                            self.format_table_type(table_columns['type']), foreign_keys_str, ]
+            columns_info = [f"{column_index} {key_marker}", table_columns.name,
+                            self.format_table_type(table_columns.type), foreign_keys_str, ]
 
             table_column_description.append(columns_info)
             count_columns += 1
@@ -64,7 +66,7 @@ class SqlOperations:
         cleaned_str = fk_str.replace('ForeignKey(\'', '').replace('\')', '')
         return cleaned_str
 
-    def generate_selects_from_relationships(self, table_info: DatabaseOperations.TableRecords) -> RelationQuery | None:
+    def generate_selects_from_relationships(self, table_info: ResultSet) -> RelationQuery | None:
         has_relations = self.table_has_relations(table_info)
         if not has_relations:
             return
@@ -72,7 +74,7 @@ class SqlOperations:
         sql_selects = self.generate_sql_from_relations(relationships)
         return sql_selects
 
-    def extract_relationship_data(self, table_info: DatabaseOperations.TableRecords) -> RelationQuery:
+    def extract_relationship_data(self, table_info: ResultSet) -> RelationQuery:
         relationship_data = []
         for column_index, columns in enumerate(table_info['columns']):
             if columns['foreign_keys']:
@@ -84,7 +86,7 @@ class SqlOperations:
         return relationship_data
 
     @staticmethod
-    def table_has_relations(table_info: DatabaseOperations.TableRecords) -> bool:
+    def table_has_relations(table_info: ResultSet) -> bool:
         table_columns = table_info['columns']
         has_relations = False
         for columns in table_columns:
@@ -93,7 +95,7 @@ class SqlOperations:
                 break
         return has_relations
 
-    def generate_sql_from_relations(self, relationships_data: DatabaseOperations.TableMetadata) -> RelationQuery:
+    def generate_sql_from_relations(self, relationships_data: TableColumn) -> RelationQuery:
         output_selects = []
         for relationship in relationships_data:
             id_value = str(relationship[0])
@@ -200,7 +202,7 @@ class SqlOperations:
 
     @staticmethod
     def generate_output_data(db_name: str, table_name: str, where_clause: str,
-                             row_data: DatabaseOperations.TableRecords,
+                             row_data: ResultSet,
                              output_option: str, output_path_file: str) -> None:
         primary_columns = databaseSelector.get_primary_columns(row_data)
 
@@ -305,29 +307,29 @@ class SqlOperations:
     def show_table_result_columns(result_set_index: int, script_name: str,
                            data_rows: dict[str, list[any]], show_headers) -> str:
         row_no = 1
-        no_of_records = len(data_rows['data'])
+        no_of_records = len(data_rows.data)
         if no_of_records == 0:
             return ''
         data_output = ''
         max_len_column = 0
-        data_row = data_rows['data'][0]
+        data_row = data_rows.data[0]
         for colindex, column in enumerate(data_row):
-            current_len = len(data_rows['columns'][colindex])
+            current_len = len(data_rows.columns[colindex])
             if max_len_column < current_len:
                 max_len_column = current_len
 
         max_len_type = 0
         for type_index, type_name in enumerate(data_row):
-            current_len = len(data_rows['types'][type_index])
+            current_len = len(data_rows.types[type_index])
             if max_len_type < current_len:
                 max_len_type = current_len
         data_output += f'---- Start {script_name} \r\n'
-        for data_row in data_rows['data']:
+        for data_row in data_rows.data:
             data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
             for colindex, column in enumerate(data_row):
-                column_name = str(data_rows['columns'][colindex])
+                column_name = str(data_rows.columns[colindex])
                 extended_column_name = column_name.ljust(max_len_column, ' ')
-                type_name = str(data_rows['types'][colindex])
+                type_name = str(data_rows.types[colindex])
                 extended_type_name = type_name.ljust(max_len_type, ' ')
                 data_output += extended_column_name + '  :  ' + str(extended_type_name) + '  :  ' + str(column) + ' \r\n'
             row_no += 1
@@ -338,17 +340,17 @@ class SqlOperations:
     @staticmethod
     def show_table_result_csv(data_rows: dict[str, list[any]]) -> str:
         row_no = 1
-        no_of_records = len(data_rows['data'])
+        no_of_records = len(data_rows.data)
         if no_of_records == 0:
             return ''
         data_output = ''
-        for column_index, column_data in enumerate(data_rows['columns']):
+        for column_index, column_data in enumerate(data_rows.columns):
             if column_index > 0:
                 data_output += ','
             data_output += str(column_data)
 
         data_output += f'\r\n'
-        for column_index, column_data in enumerate(data_rows['data']):
+        for column_index, column_data in enumerate(data_rows.data):
             for row_index, row_data in enumerate(column_data):
                 if row_index > 0:
                     data_output += ','

@@ -6,6 +6,8 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.sql.type_api import TypeEngine
 
 from source_code.database_operations import DatabaseOperations
+from source_code.database_operations import TableColumn
+from source_code.database_operations import ResultSet
 from tqdm import tqdm
 
 def get_current_timestamp() -> str:
@@ -15,7 +17,7 @@ def get_current_timestamp() -> str:
 class ScriptGenerator:
 
     def create_insert_statement(self, database_name: str, table_name: str,
-                                table_data: DatabaseOperations.TableRecords, add_record: bool) -> str:
+                                table_data: ResultSet, add_record: bool) -> str:
         try:
             show_identity_statement = self.has_table_columns_have_autoincrement(table_data)
             auto_columns = self.get_table_columns_are_autoincrement(table_data)
@@ -35,13 +37,13 @@ class ScriptGenerator:
             for row_index, column in enumerate(table_data['columns']):
                 if len(column_text) > 0:
                     column_text += ' ,'
-                is_auto_row = column['name'] in auto_columns
+                is_auto_row = column.name in auto_columns
                 if is_auto_row:
                     auto_row_index.append(row_index)
                 if add_record and is_auto_row == False:
-                    column_text += f"[{column['name']}] "
+                    column_text += f"[{column.name}] "
                 if not add_record:
-                    column_text += f"[{column['name']}] "
+                    column_text += f"[{column.name}] "
                 loop_counter += 1
                 if loop_counter >= loop_break_index:
                     column_text += '\n    '
@@ -92,8 +94,8 @@ class ScriptGenerator:
             self.handle_general_exceptions('create_insert_statement', exc)
 
     def create_update_statement(self, database_name: str, table_name: str,
-                                table_data: DatabaseOperations.TableRecords,
-                                primary_columns: DatabaseOperations.TableMetadata) -> str:
+                                table_data: ResultSet,
+                                primary_columns: TableColumn) -> str:
         try:
             primary_column_index = self.find_column_primary_indexes(primary_columns, table_data)
 
@@ -118,7 +120,7 @@ class ScriptGenerator:
                     if loop_columns not in primary_column_index:
                         if len(column_text) > 0:
                             column_text += ' ,'
-                        column = table_data['columns'][loop_columns]['name']
+                        column = table_data["columns"][loop_columns].name
                         value = self.format_row_data_type_with_column(row_data[loop_columns],
                                                                       table_data['columns'][loop_columns])
                         column_text += f" {column} = {value}"
@@ -135,7 +137,7 @@ class ScriptGenerator:
                     if loop_columns in primary_column_index:
                         if len(where_text) > 0:
                             where_text += '\n    AND ,'
-                        column = table_data['columns'][loop_columns]['name']
+                        column = table_data['columns'][loop_columns].name
                         value = self.format_row_data_type_with_column(
                             row_data[loop_columns], table_data['columns'][loop_columns])
                         where_text += f"{column} = {value}"
@@ -147,8 +149,8 @@ class ScriptGenerator:
             self.handle_general_exceptions('create_update_statement', exc)
 
     def create_insert_pk_statement(self, database_name: str, table_name: str,
-                                table_data: DatabaseOperations.TableRecords,
-                                primary_columns: DatabaseOperations.TableMetadata) -> str:
+                                table_data: ResultSet,
+                                primary_columns: TableColumn) -> str:
         try:
             primary_column_index = self.find_column_primary_indexes(primary_columns, table_data)
 
@@ -223,37 +225,37 @@ class ScriptGenerator:
         str | int, list[Any] | list[
             dict[str, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]]]) -> list[Any]:
         primary_column_index = []
-        for index, columns in enumerate(table_data['columns']):
+        for index, columns in enumerate(table_data["columns"]):
             for primary_column in primary_columns:
-                if columns['name'] == primary_column['name']:
+                if columns.name == primary_column.name:
                     primary_column_index.append(index)
         return primary_column_index
 
     @staticmethod
-    def has_table_columns_have_autoincrement(table_data: DatabaseOperations.TableRecords) -> bool:
+    def has_table_columns_have_autoincrement(table_data: ResultSet) -> bool:
         has_autoincrement = False
-        for dataRow in table_data['columns']:
-            if dataRow['autoincrement']:
+        for dataRow in table_data["columns"]:
+            if dataRow.autoincrement:
                 if not has_autoincrement:
                     has_autoincrement = True
                     break
         return has_autoincrement
 
     @staticmethod
-    def get_table_columns_are_autoincrement(table_data: DatabaseOperations.TableRecords) -> [str]:
+    def get_table_columns_are_autoincrement(table_data: ResultSet) -> [str]:
         autoincrement_columns = []
-        for dataRow in table_data['columns']:
-            if dataRow['autoincrement']:
-                autoincrement_columns.append(dataRow['name'])
+        for dataRow in table_data["columns"]:
+            if dataRow.autoincrement:
+                autoincrement_columns.append(dataRow.name)
         return autoincrement_columns
 
     def format_row_data_type_with_column(self, row_data: any,
-                                         column_data: DatabaseOperations.TableMetadataItem) -> str:
+                                         column_data: TableColumn) -> str:
         try:
             if row_data is None:
                 return 'NULL'
 
-            type_description = str(column_data['type'])
+            type_description = str(column_data.type)
 
             is_numeric = False
             is_string = False

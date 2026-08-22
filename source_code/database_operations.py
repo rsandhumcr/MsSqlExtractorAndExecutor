@@ -1,251 +1,547 @@
-import traceback
-import logging
-import sqlalchemy
-import struct
-from azure.identity import AzureCliCredential
-from sqlalchemy import text, create_engine, PoolProxiedConnection, Sequence
-from sqlalchemy.engine.interfaces import DBAPICursor
-from sqlalchemy.sql.base import ReadOnlyColumnCollection
-from sqlalchemy.sql.schema import Column, ForeignKey
-from sqlalchemy.engine import Engine, URL
-from sqlalchemy.sql.type_api import TypeEngine
-from typing import Literal, Callable, Any
+from __future__ import annotations
 
-SQL_COPT_SS_ACCESS_TOKEN = 1256  # As defined in msodbcsql.h
+import logging
+import struct
+from dataclasses import dataclass
+from typing import Any, TypeAlias
+
+from azure.identity import AzureCliCredential
+from sqlalchemy import MetaData, Table, create_engine, text
+from sqlalchemy.engine import Connection, Engine, URL
+from sqlalchemy.sql.type_api import TypeEngine
+
+
+logger = logging.getLogger(__name__)
+
+
+# Microsoft ODBC constant for an access token.
+SQL_COPT_SS_ACCESS_TOKEN = 1256
+
+DatabaseConfigType: TypeAlias = dict[str, str | URL]
+DatabaseConnectionString: TypeAlias = str | URL
+
+
+@dataclass
+class ResultSet:
+    """A SQL result set."""
+
+    data: list[Any]
+    columns: list[TableColumn]
+    types: list[str]
+
+
+@dataclass
+class TableColumn:
+    """Metadata describing a database table column."""
+
+    name: str
+    type: TypeEngine
+    autoincrement: bool | str
+    foreign_keys: set[Any]
+    primary_key: bool
+
 
 class DatabaseOperations:
-    enable_logging = False
+    """Database access and metadata operations."""
 
-    type TableMetadata = list[dict[str | int, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]]
-    type TableMetadataItem = dict[str | int, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]
-    type TableRecords = dict[str | int, list[any] | list[dict[str, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]]]
-    type ConnectionType = URL | str
-
-    def __init__(self, master_database='master'):
+    def __init__(
+        self,
+        master_database: str = "master",
+        enable_logging: bool = False,
+    ) -> None:
         self.master_database = master_database
+        self.enable_logging = enable_logging
 
-    def get_connection_object(self, database_config: dict[str, str|URL]) -> sqlalchemy.engine.Connection:
-        try:
-            if database_config['use_azure_identity_entra']:
-                token_struct = self.get_azure_cli_auth_token()
-                constr = database_config['connection_str']
-                engine: Engine = create_engine(constr, connect_args={"attrs_before": {SQL_COPT_SS_ACCESS_TOKEN:token_struct}})
-            else:
-                engine: Engine = create_engine(database_config['connection_str'], echo=False)
-            conn: sqlalchemy.engine.Connection = engine.connect()
-            return conn
-        except Exception as exc:
-            self.handle_general_exceptions('get_connection_object', exc)
-            #exit()
+        self._engines: dict[str, Engine] = {}
 
-    def get_azure_cli_auth_token(self) -> bytes:
+        if enable_logging:
+            self._configure_logging()
+
+    # ------------------------------------------------------------------
+    # Engine / connection handling
+    # ------------------------------------------------------------------
+
+    def _configure_logging(self) -> None:
+        """Configure SQLAlchemy logging."""
+
+        logging.getLogger("sqlalchemy.engine").setLevel(
+            logging.INFO
+        )
+
+    def _get_engine(
+        self,
+        database_config: DatabaseConfigType,
+    ) -> Engine:
+        """
+        Get or create an SQLAlchemy engine for a database configuration.
+
+        Engines are cached because creating an Engine for every query is
+        unnecessary and prevents SQLAlchemy from efficiently managing
+        its connection pool.
+        """
+
+        connection_string = str(
+            database_config["connection_str"]
+        )
+
+        if connection_string in self._engines:
+            return self._engines[connection_string]
+
+        engine = self._create_engine(database_config)
+
+        self._engines[connection_string] = engine
+
+        return engine
+
+    def _create_engine(
+        self,
+        database_config: DatabaseConfigType,
+    ) -> Engine:
+        """Create an SQLAlchemy engine."""
+
+        connection_string = database_config["connection_str"]
+
+        if database_config.get(
+            "use_azure_identity_entra",
+            False,
+        ):
+            access_token = self.get_azure_cli_auth_token()
+
+            return create_engine(
+                connection_string,
+                connect_args={
+                    "attrs_before": {
+                        SQL_COPT_SS_ACCESS_TOKEN: access_token
+                    }
+                },
+            )
+
+        return create_engine(
+            connection_string,
+            echo=self.enable_logging,
+        )
+
+    def get_connection_object(
+        self,
+        database_config: DatabaseConfigType,
+    ) -> Connection:
+        """
+        Return an SQLAlchemy connection.
+
+        Prefer using the connection as a context manager in new code.
+        """
+
+        engine = self._get_engine(database_config)
+
+        return engine.connect()
+
+    def close(self) -> None:
+        """Dispose of all cached database engines."""
+
+        for engine in self._engines.values():
+            engine.dispose()
+
+        self._engines.clear()
+
+    # ------------------------------------------------------------------
+    # Azure authentication
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def get_azure_cli_auth_token() -> bytes:
+        """
+        Get an Azure SQL access token from Azure CLI credentials.
+
+        The SQL Server ODBC driver expects the token in a specific
+        UTF-16LE-like structure prefixed by its byte length.
+        """
+
         credential = AzureCliCredential()
-        databaseToken = credential.get_token('https://database.windows.net/')
-        tokenb = bytes(databaseToken[0], "UTF-8")
-        exptoken = b''
-        for i in tokenb:
-            exptoken += bytes({i})
-            exptoken += bytes(1)
-        token_struct = struct.pack("=i", len(exptoken)) + exptoken
-        return token_struct
 
-    def get_raw_connection_object(self, database_config: dict[str, str|URL]) -> PoolProxiedConnection:
-        try:
-            #raw_connection: PoolProxiedConnection = create_engine(database_config['connection_str'], echo=False).raw_connection()
-            if database_config['use_azure_identity_entra']:
-                token_struct = self.get_azure_cli_auth_token()
-                constr = database_config['connection_str']
-                raw_connection: PoolProxiedConnection = create_engine(constr, connect_args={"attrs_before": {SQL_COPT_SS_ACCESS_TOKEN:token_struct}}).raw_connection()
-            else:
-                raw_connection: PoolProxiedConnection = create_engine(database_config['connection_str'], echo=False).raw_connection()
-            return raw_connection
-        except Exception as exc:
-            self.handle_general_exceptions('get_raw_connection_object', exc)
-            exit()
+        access_token = credential.get_token(
+            "https://database.windows.net/"
+        )
 
-    def get_database(self, database_config: dict[str, str|URL]) -> list[Any] | None:
-        try:
-            query = 'SELECT name FROM sys.sysdatabases ORDER BY name'
-            result_set = self.execute_sql_script(database_config, query)
-            database_names = []
-            for row in result_set['data']:
-                database_names.append(row[0])
-            return database_names
-        except Exception as exc:
-            self.handle_general_exceptions('get_database', exc)
+        token_bytes = access_token.token.encode("utf-16-le")
 
-    def search_table_name(self, database_config: dict[str, str|URL], table_name_search: str) -> list[Any] | None:
-        try:
-            query = f"SELECT '[' + [TABLE_SCHEMA] + '].[' + [TABLE_NAME] + ']' NAME "
-            query += f"FROM [{database_config['db_name']}].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' "
-            query += f"AND TABLE_NAME LIKE '%{table_name_search}%' "
-            result_set = self.execute_sql_script(database_config, query)
+        return struct.pack(
+            "=i",
+            len(token_bytes),
+        ) + token_bytes
 
-            schema_table_names = []
-            for row in result_set['data']:
-                schema_table_names.append(row[0])
+    # ------------------------------------------------------------------
+    # Database discovery
+    # ------------------------------------------------------------------
 
-            return schema_table_names
-        except Exception as exc:
-            self.handle_general_exceptions('search_table_name', exc)
+    def get_database(
+        self,
+        database_config: DatabaseConfigType,
+    ) -> list[str]:
+        """Return available database names."""
 
-    def get_table_data(self, database_config: dict[str, str|URL], table_name: str, where_clause: str) -> TableRecords:
-        table_data = self.get_table_query_data(database_config, table_name, where_clause)
-        table_meta_data = self.get_table_meta_data_simple_string(database_config, table_name)
+        query = text(
+            """
+            SELECT name
+            FROM sys.databases
+            ORDER BY name
+            """
+        )
+
+        result = self._execute_query(
+            database_config,
+            query,
+        )
+
+        return [
+            row[0]
+            for row in result.data
+        ]
+
+    # ------------------------------------------------------------------
+    # Table discovery
+    # ------------------------------------------------------------------
+
+    def search_table_name(
+        self,
+        database_config: DatabaseConfigType,
+        table_name_search: str,
+    ) -> list[str]:
+        """Search for tables matching a name."""
+
+        query = text(
+            """
+            SELECT
+                '[' + TABLE_SCHEMA + '].[' + TABLE_NAME + ']'
+                    AS table_name
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE = 'BASE TABLE'
+              AND TABLE_NAME LIKE :search_term
+            ORDER BY TABLE_SCHEMA, TABLE_NAME
+            """
+        )
+
+        result = self._execute_query(
+            database_config,
+            query,
+            {
+                "search_term": f"%{table_name_search}%"
+            },
+        )
+
+        return [
+            row[0]
+            for row in result.data
+        ]
+
+    # ------------------------------------------------------------------
+    # Table data
+    # ------------------------------------------------------------------
+
+    def get_table_data(
+        self,
+        database_config: DatabaseConfigType,
+        table_name: str,
+        where_clause: str = "",
+    ) -> dict[str, Any]:
+        """Return table data and column metadata."""
+
+        table_data = self.get_table_query_data(
+            database_config,
+            table_name,
+            where_clause,
+        )
+
+        table_metadata = (
+            self.get_table_meta_data_simple_string(
+                database_config,
+                table_name,
+            )
+        )
 
         return {
-            'query': table_data['query'],
-            'data': table_data['data'],
-            'columns': table_meta_data
+            "query": table_data["query"],
+            "data": table_data["data"],
+            "columns": table_metadata,
         }
 
-    def get_table_query_data(self, database_config: dict[str, str|URL], table_name: str, where_clause: str) -> dict[
-                                                                                                                   str, str |
-                                                                                                                        list[
-                                                                                                                            Any]] | None:
-        try:
-            query: str = f"SELECT * FROM {table_name} "
-            if where_clause:
-                query += f"WHERE {where_clause}"
+    def get_table_query_data(
+        self,
+        database_config: DatabaseConfigType,
+        table_name: str,
+        where_clause: str = "",
+    ) -> dict[str, Any]:
+        """
+        Execute SELECT * against a table.
 
-            result_set = self.execute_sql_script(database_config, query)
+        Note:
+            table_name and where_clause are SQL fragments rather than
+            normal SQL parameters. They should only come from trusted
+            or validated input.
+        """
 
-            table_data_rows = []
-            for row in result_set['data']:
-                table_data_rows.append(row)
+        query = f"SELECT * FROM {table_name}"
 
-            return {
-                'query': query,
-                'data': table_data_rows,
-            }
-        except Exception as exc:
-            self.handle_general_exceptions('get_table_data', exc)
+        if where_clause:
+            query += f" WHERE {where_clause}"
 
-    def get_table_meta_data(self, database_config: dict[str, str|URL], schema_name: str, table_name: str) -> list[
-                                                                                                                 Any] | None:
-        try:
-            connection = self.get_connection_object(database_config)
+        result = self._execute_query(
+            database_config,
+            text(query),
+        )
 
-            meta_data = sqlalchemy.MetaData()
-            table_data = sqlalchemy.Table(table_name, meta_data, schema=schema_name, autoload_with=connection)
+        return {
+            "query": query,
+            "data": result.data,
+        }
 
-            columns = []
-            columns_db: Callable[[], ReadOnlyColumnCollection[str, Column[Any]]] = table_data.columns
-            column_db: sqlalchemy.Column
-            for column_db in columns_db:
-                foreign_keys = column_db.foreign_keys
+    # ------------------------------------------------------------------
+    # Table metadata
+    # ------------------------------------------------------------------
 
-                columns.append({'name': column_db.name,
-                                'type': column_db.type,
-                                'autoincrement': column_db.autoincrement,
-                                'foreign_keys': foreign_keys,
-                                'primary_key': column_db.primary_key})
-            return columns
-        except Exception as exc:
-            self.handle_general_exceptions('get_table_meta_data', exc)
+    def get_table_meta_data(
+        self,
+        database_config: DatabaseConfigType,
+        schema_name: str,
+        table_name: str,
+    ) -> list[TableColumn]:
+        """Return SQLAlchemy metadata for a table."""
+
+        engine = self._get_engine(database_config)
+
+        metadata = MetaData()
+
+        with engine.connect() as connection:
+            table = Table(
+                table_name,
+                metadata,
+                schema=schema_name,
+                autoload_with=connection,
+            )
+
+            columns: list[TableColumn] = []
+
+            for column in table.columns:
+                columns.append(
+                    TableColumn(
+                        name=column.name,
+                        type=column.type,
+                        autoincrement=column.autoincrement,
+                        foreign_keys=set(column.foreign_keys),
+                        primary_key=column.primary_key,
+                    )
+                )
+
+        return columns
+
+    def get_table_meta_data_simple_string(
+        self,
+        database_config: DatabaseConfigType,
+        table_name: str,
+    ) -> list[TableColumn]:
+        """Get table metadata from a schema.table string."""
+
+        schema_name, table_name = (
+            self.extract_schema_table_name(
+                table_name
+            )
+        )
+
+        return self.get_table_meta_data(
+            database_config,
+            schema_name,
+            table_name,
+        )
 
     @staticmethod
-    def extract_schema_table_name(database_table: str) -> dict[str, str]:
-        database_names = database_table.replace('[', '').replace(']', '').split('.')
-        if len(database_names) == 1:
-            return {'schema': 'dbo', 'table': database_names}
-        return {'schema': database_names[0], 'table': database_names[1]}
+    def extract_schema_table_name(
+        database_table: str,
+    ) -> tuple[str, str]:
+        """
+        Extract schema and table names.
 
-    def get_table_meta_data_simple_string(self, database_config: dict[str, str|URL], table_name: str) -> TableMetadata:
-        table_data = self.extract_schema_table_name(table_name)
-        return self.get_table_meta_data(database_config, table_data['schema'], table_data['table'])
+        Examples:
+            Sales.Customer -> ("Sales", "Customer")
+            [Sales].[Customer] -> ("Sales", "Customer")
+            Customer -> ("dbo", "Customer")
+        """
+
+        parts = [
+            part.strip()
+            .strip("[]")
+            for part in database_table.split(".")
+        ]
+
+        if len(parts) == 1:
+            return "dbo", parts[0]
+
+        if len(parts) == 2:
+            return parts[0], parts[1]
+
+        raise ValueError(
+            f"Invalid table name: {database_table}"
+        )
 
     @staticmethod
-    def get_primary_columns(table_data: TableRecords) -> TableMetadata:
-        primary_columns = []
-        for dataRow in table_data['columns']:
-            if dataRow['primary_key']:
-                primary_columns.append(dataRow)
-        return primary_columns
+    def get_primary_columns(
+        table_data: dict[str, Any],
+    ) -> list[TableColumn]:
+        """Return the primary-key columns from table metadata."""
 
-    def execute_sql_script_no_data(self, database_config: dict[str, str|URL], sql_script: str) -> None:
+        return [
+            column
+            for column in table_data["columns"]
+            if column.primary_key
+        ]
+
+    # ------------------------------------------------------------------
+    # SQL execution
+    # ------------------------------------------------------------------
+
+    def execute_sql_script_no_data(
+        self,
+        database_config: DatabaseConfigType,
+        sql_script: str,
+    ) -> None:
+        """Execute a SQL script without returning results."""
+
+        engine = self._get_engine(database_config)
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(sql_script)
+            )
+
+    def execute_sql_script(
+        self,
+        database_config: DatabaseConfigType,
+        sql_script: str,
+        parameters: dict[str, Any] | None = None,
+    ) -> ResultSet:
+        """Execute SQL and return its result set."""
+
+        return self._execute_query(
+            database_config,
+            text(sql_script),
+            parameters,
+        )
+
+    def _execute_query(
+        self,
+        database_config: DatabaseConfigType,
+        query: Any,
+        parameters: dict[str, Any] | None = None,
+    ) -> ResultSet:
+        """Execute a query and return a ResultSet."""
+
+        engine = self._get_engine(database_config)
+
+        with engine.connect() as connection:
+            result = connection.execute(
+                query,
+                parameters or {},
+            )
+
+            columns = list(
+                result.keys()
+            )
+
+            data = result.fetchall()
+
+        return ResultSet(
+            data=data,
+            columns=columns,
+            types=[
+                type(value).__name__
+                for value in data[0]
+            ] if data else [],
+        )
+
+    # ------------------------------------------------------------------
+    # Raw DB-API execution
+    # ------------------------------------------------------------------
+
+    def execute_sql_script_raw_connection(
+        self,
+        database_config: DatabaseConfigType,
+        sql_script: str,
+    ) -> list[ResultSet]:
+        """
+        Execute SQL through the underlying DB-API connection.
+
+        This is useful for SQL Server scripts returning multiple
+        result sets.
+        """
+
+        engine = self._get_engine(database_config)
+
+        result_sets: list[ResultSet] = []
+
+        #with engine.raw_connection() as raw_connection:
+        raw_connection = engine.raw_connection()
+        cursor = raw_connection.cursor()
+
         try:
-            if self.enable_logging:
-                logging.basicConfig()
-                logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            connection = self.get_connection_object(database_config)
-            connection.execute(text(sql_script))
-            connection.commit()
-            connection.close()
-        except Exception as exc:
-            self.handle_general_exceptions('execute_sql_script_no_data', exc)
-
-    def execute_sql_script(self, database_config: dict[str, str|URL] | None, sql_script: str) -> dict[str, list[
-        Any]] | None:
-        try:
-            if self.enable_logging:
-                logging.basicConfig()
-                logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-
-            connection = self.get_connection_object(database_config)
-
-            result_set = connection.execute(text(sql_script))
-            columns = []
-            for column in result_set._metadata.keys:
-                columns.append(column)
-            data_row = []
-            if result_set is not None:
-                for row in result_set:
-                    data_row.append(row)
-
-            connection.commit()
-            connection.close()
-            return {'data': data_row, 'columns': columns}
-        except Exception as exc:
-            self.handle_general_exceptions('execute_sql_script', exc)
-
-    def execute_sql_script_raw_connection(self, database_config: dict[str, str|URL], sql_script: str) -> list[
-                                                                                                             Any] | None:
-        result = []
-        try:
-            if self.enable_logging:
-                logging.basicConfig()
-                logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
-            raw_connection = self.get_raw_connection_object(database_config)
-
-            cursor = raw_connection.cursor()
             cursor.execute(sql_script)
 
-            if cursor.description is not None:
-                result_set = cursor.fetchall()
-                data_first = self.extract_result_data(result_set, cursor)
-                result.append(data_first)
-
-            while cursor.nextset():
+            while True:
                 if cursor.description is not None:
-                    result_set = cursor.fetchall()
-                    data_second = self.extract_result_data(result_set, cursor)
-                    result.append(data_second)
+                    rows = cursor.fetchall()
 
-            raw_connection.commit()
-            raw_connection.close()
-            return result
+                    result_sets.append(
+                        self.extract_result_data(
+                            rows,
+                            cursor.description,
+                        )
+                    )
 
-        except Exception as exc:
-            self.handle_general_exceptions('execute_sql_script_raw_connection', exc)
+                if not cursor.nextset():
+                    break
 
-    @staticmethod
-    def extract_result_data(result_set: Sequence, cursor: DBAPICursor) -> dict[str, list[any]]:
-        columns = []
-        for column in cursor.description:
-            columns.append(column[0])
-        types = []
-        for column in cursor.description:
-            types.append(column[1].__name__)
-        data_row = []
-        if result_set is not None:
-            for row in result_set:
-                data_row.append(row)
-        return {'data': data_row, 'columns': columns, 'types': types}
+            #raw_connection.commit()
+
+        finally:
+            cursor.close()
+
+        return result_sets
 
     @staticmethod
-    def handle_general_exceptions(method_name: str, exception: Exception) -> None:
-        print(f'DatabaseOperations Method : {method_name}')
-        print('ex : ', exception)
-        tb = traceback.TracebackException.from_exception(exception)
-        print(''.join(tb.stack.format()))
+    def extract_result_data(
+        result_set: Any,
+        description: Any,
+    ) -> ResultSet:
+        """Convert DB-API result data into a ResultSet."""
+
+        columns = [
+            column[0]
+            for column in description
+        ]
+
+        types = [
+            getattr(
+                column[1],
+                "__name__",
+                str(column[1]),
+            )
+            for column in description
+        ]
+
+        return ResultSet(
+            data=list(result_set or []),
+            columns=columns,
+            types=types,
+        )
+
+    # ------------------------------------------------------------------
+    # Cleanup
+    # ------------------------------------------------------------------
+
+    def __enter__(self) -> DatabaseOperations:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Any,
+        exc_value: Any,
+        traceback_value: Any,
+    ) -> None:
+        self.close()

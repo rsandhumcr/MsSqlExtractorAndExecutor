@@ -12,6 +12,11 @@ connection_config = {
         'connection_str': f'mssql+pyodbc://user02:user02@./AdventureWorksLT2019?driver=ODBC+Driver+17+for+SQL+Server',
         'use_azure_identity_entra': False,
     },
+    'local3': {
+        'db_name': 'AdventureWorksLT2019',
+        'connection_str': 'mssql+pyodbc://user02:user02@(localdb)\MSSQLLocalDB/AdventureWorksLT2019?driver=ODBC+Driver+17+for+SQL+Server',
+        'use_azure_identity_entra': False,
+    },
     'localAdventureWorks2019': {
         'db_name': 'AdventureWorks2019',
         'connection_str': f'mssql+pyodbc://user02:user02@./AdventureWorks2019?driver=ODBC+Driver+17+for+SQL+Server',

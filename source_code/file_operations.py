@@ -5,6 +5,8 @@ import traceback
 class FileOperations:
     def write_to_file(self, path_file: str, string_data: str) -> None:
         try:
+            if path_file is None:
+                path_file = ".\\output\\test.txt"
             text_file = open(path_file, "a")
             text_file.write(string_data)
             text_file.close()

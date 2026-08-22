@@ -1,6 +1,8 @@
 from datetime import datetime
 import traceback
 from source_code.database_operations import DatabaseOperations
+from source_code.database_operations import ResultSet
+from source_code.database_operations import TableColumn
 
 
 def get_current_timestamp() -> str:
@@ -10,7 +12,7 @@ def get_current_timestamp() -> str:
 class CSharpObjectGenerator:
 
     def create_object_statement(self, database_name: str, table_name: str,
-                                table_data: DatabaseOperations.TableRecords) -> str:
+                                table_data: ResultSet) -> str:
         try:
             number_of_columns = len(table_data['columns'])
 
@@ -49,7 +51,7 @@ class CSharpObjectGenerator:
             self.handle_general_exceptions('create_object_statement', exc)
 
     def format_row_data_type_with_column(self, row_data: any,
-                                         column_data: DatabaseOperations.TableMetadataItem) -> str:
+                                         column_data: TableColumn) -> str:
         try:
             if row_data is None:
                 return 'null'
