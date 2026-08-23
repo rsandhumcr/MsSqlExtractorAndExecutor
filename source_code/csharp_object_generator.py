@@ -1,170 +1,281 @@
+from __future__ import annotations
+
+import logging
 from datetime import datetime
-import traceback
-from source_code.database_operations import DatabaseOperations
-from source_code.database_operations import ResultSet
-from source_code.database_operations import TableColumn
+from typing import Any
+
+from source_code.database_operations import ResultSet, TableColumn
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_current_timestamp() -> str:
-    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n\r\n"
+    """Return the current timestamp in the generator's output format."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return f"--- {timestamp}  \r\n\r\n"
 
 
 class CSharpObjectGenerator:
+    """Generate C# object initialisation statements from database results."""
 
-    def create_object_statement(self, database_name: str, table_name: str,
-                                table_data: ResultSet) -> str:
+    _INTEGER_TYPES = (
+        "INTEGER",
+        "INT",
+        "SMALLINT",
+        "TINYINT",
+    )
+
+    _LONG_TYPES = (
+        "BIGINT",
+    )
+
+    _DECIMAL_TYPES = (
+        "DECIMAL",
+        "FLOAT",
+        "REAL",
+        "MONEY",
+    )
+
+    _STRING_TYPES = (
+        "TEXT",
+        "NVARCHAR",
+        "VARCHAR",
+        "NCHAR",
+        "CHAR",
+    )
+
+    _DATETIME_TYPES = (
+        "DATETIME",
+        "DATE",
+        "TIMESTAMP",
+        "TIME",
+    )
+
+    _BOOL_TYPES = (
+        "BOOLEAN",
+        "BIT",
+    )
+
+    def create_object_statement(
+        self,
+        database_name: str,
+        table_name: str,
+        table_data: ResultSet,
+    ) -> str:
+        """Generate C# object initialisation statements."""
         try:
-            number_of_columns = len(table_data['columns'])
+            columns = table_data["columns"]
+            rows = table_data["data"]
+            query = table_data["query"]
 
-            query = table_data['query']
+            object_name = self.format_name(table_name)
+            output: list[str] = [
+                f" /// {database_name}  {query}\n"
+            ]
 
-            output_sql = f' /// {database_name}  {query} \n'
-            for row_data in table_data['data']:
-                loop_break_index = 5
-                loop_counter = 0
-                object_name = self.format_name(table_name)
-                output_sql += f'    {object_name}.Add( new {object_name}'
-                output_sql += 'Row {\n'
-                column_text = ''
+            for row_data in rows:
+                output.append(
+                    self._format_row(
+                        object_name,
+                        row_data,
+                        columns,
+                    )
+                )
 
-                for loop_columns in range(0, number_of_columns):
-                    if len(column_text) > 0:
-                        column_text += ' ,'
-                    column = table_data['columns'][loop_columns]['name']
-                    value = self.format_row_data_type_with_column(row_data[loop_columns],
-                                                                  table_data['columns'][loop_columns])
-                    property_name =  self.format_name(column)
-                    column_text += f" {property_name} = {value}"
-                    loop_counter += 1
-                    if loop_counter >= loop_break_index:
-                        column_text += '\n    '
-                        loop_counter = 0
+            output.append(");  \n\n")
+            output.append(get_current_timestamp())
 
-                output_sql += f'  {column_text}\n'
-                output_sql += '}'
+            return "".join(output)
 
+        except Exception:
+            logger.exception(
+                "Failed to create C# object statement"
+            )
+            raise
 
-            output_sql += f');  \n\n'
-            output_sql += get_current_timestamp()
-            return output_sql
-        except Exception as exc:
-            self.handle_general_exceptions('create_object_statement', exc)
+    def _format_row(
+        self,
+        object_name: str,
+        row_data: list[Any],
+        columns: list[TableColumn],
+    ) -> str:
+        """Format a single database row as a C# object."""
+        properties = [
+            self._format_property(row_data[index], column)
+            for index, column in enumerate(columns)
+        ]
 
-    def format_row_data_type_with_column(self, row_data: any,
-                                         column_data: TableColumn) -> str:
-        try:
-            if row_data is None:
-                return 'null'
+        formatted_properties = self._format_properties(
+            properties
+        )
 
-            type_description = str(column_data['type'])
+        return (
+            f"    {object_name}.Add(new {object_name}Row {{\n"
+            f"{formatted_properties}\n"
+            f"    }}"
+        )
 
-            is_integer = False
-            is_uniqueidentifier = False
-            is_long = False
-            is_decimal = False
-            is_string = False
-            is_datetime = False
-            is_datetimeoffset = False
-            is_varbinary = False
-            is_xml = False
+    def _format_property(
+        self,
+        row_value: Any,
+        column: TableColumn,
+    ) -> str:
+        """Format a single C# property assignment."""
+        column_name = self.format_name(column.name)
+        value = self.format_row_data_type_with_column(
+            row_value,
+            column,
+        )
 
-            is_bool = type_description.startswith(('BOOLEAN', 'BIT'))
-            if not is_bool:
-                is_string = type_description.startswith(('TEXT', 'NVARCHAR', 'VARCHAR', 'NCHAR', 'CHAR'))
-                if not is_string:
-                    is_uniqueidentifier = type_description.startswith(('UNIQUEIDENTIFIER'))
-                    if not is_uniqueidentifier:
-                        is_datetimeoffset = type_description.startswith(('DATETIMEOFFSET'))
-                        if not is_datetimeoffset:
-                            is_datetime = type_description.startswith(('DATETIMEOFFSET', 'DATETIME', 'DATE',
-                                                                       'TIMESTAMP', 'TIME'))
-                            if not is_datetime:
-                                integers_types = ('INTEGER','BIGINT', 'INT', 'NUMERIC', 'SMALLINT','TINYINT')
-                                is_integer = type_description.startswith(integers_types)
-                                if not is_integer:
-                                    longs_types = ('BIGINT')
-                                    is_long = type_description.startswith(longs_types)
-                                    if not is_long:
-                                        decimals = ('DECIMAL', 'FLOAT','REAL', 'MONEY')
-                                        is_decimal = type_description.startswith(decimals)
-                                        if not is_decimal:
-                                            is_varbinary = type_description.startswith('VARBINARY')
-                                            if not is_varbinary:
-                                                is_xml = type_description.startswith('XML')
-                                                if not is_xml:
-                                                    print(f"Warning unknown type '{row_data}' : '{type_description}'")
+        return f"{column_name} = {value}"
 
-            if is_integer:
-                output_text = str(row_data)
-            elif is_long:
-                output_text = f"{row_data}L"
-            elif is_decimal:
-                output_text = f"{row_data}M"
-            elif is_string:
-                output_text = f'"{row_data}"'
-            elif is_uniqueidentifier:
-                output_text = f'Guid.Parse("{row_data}")'
-            elif is_datetime:
-                datetime_with_extra = str(row_data)
-                datetime = datetime_with_extra.split('.')
-                row_item = str(datetime[0])
-                output_text = f'DateTime.Parse("{row_item}")'
-            elif is_datetimeoffset:
-                datetime_with_extra = str(row_data)
-                datetime = datetime_with_extra.split('.')
-                row_item = str(datetime[0])
-                output_text = f'new DateTimeOffSet(DateTime.Parse("{row_item}"))'
-            elif is_bool:
-                row_item = 'false'
-                if row_data == 'True':
-                    row_item = 'true'
-                output_text = row_item
-            elif is_varbinary:
-                row_item = str(row_data).replace('"', '""')
-                output_text = f'"{row_item}"'
-            elif is_xml:
-                row_item = str(row_data).replace('"', '""')
-                output_text = f'"{row_item}"'
-            else:
-                row_item = str(row_data).replace('"', '""')
-                output_text = f'"{row_item}"'
+    @staticmethod
+    def _format_properties(
+        properties: list[str],
+        properties_per_line: int = 5,
+    ) -> str:
+        """Format properties with a configurable number per line."""
+        lines: list[str] = []
+        current_line: list[str] = []
 
-            return output_text
-        except Exception as exc:
-            self.handle_general_exceptions('format_row_data_type_with_column', exc)
+        for property_text in properties:
+            current_line.append(property_text)
+
+            if len(current_line) == properties_per_line:
+                lines.append("        , ".join(current_line))
+                current_line = []
+
+        if current_line:
+            lines.append("        , ".join(current_line))
+
+        return "\n".join(lines)
+
+    def format_row_data_type_with_column(
+        self,
+        row_data: Any,
+        column_data: TableColumn,
+    ) -> str:
+        """Convert a database value into a C# representation."""
+        if row_data is None:
+            return "null"
+
+        type_description = str(column_data.type).upper()
+
+        if type_description.startswith(self._BOOL_TYPES):
+            return self._format_bool(row_data)
+
+        if type_description.startswith(self._INTEGER_TYPES):
+            return str(row_data)
+
+        if type_description.startswith(self._LONG_TYPES):
+            return f"{row_data}L"
+
+        if type_description.startswith(self._DECIMAL_TYPES):
+            return f"{row_data}M"
+
+        if type_description.startswith(self._STRING_TYPES):
+            return self._format_csharp_string(row_data)
+
+        if type_description.startswith("UNIQUEIDENTIFIER"):
+            return (
+                f'Guid.Parse("{self._escape_string(row_data)}")'
+            )
+
+        if type_description.startswith("DATETIMEOFFSET"):
+            return self._format_datetime_offset(row_data)
+
+        if type_description.startswith(self._DATETIME_TYPES):
+            return self._format_datetime(row_data)
+
+        if type_description.startswith("VARBINARY"):
+            return self._format_csharp_string(row_data)
+
+        if type_description.startswith("XML"):
+            return self._format_csharp_string(row_data)
+
+        logger.warning(
+            "Unknown database type '%s' for value '%s'",
+            type_description,
+            row_data,
+        )
+
+        return self._format_csharp_string(row_data)
+
+    @staticmethod
+    def _format_bool(value: Any) -> str:
+        """Convert a database boolean value to C# syntax."""
+        if isinstance(value, bool):
+            return str(value).lower()
+
+        return "true" if str(value).lower() == "true" else "false"
+
+    @classmethod
+    def _format_datetime(cls, value: Any) -> str:
+        """Format a database datetime as C# DateTime.Parse."""
+        value_text = cls._remove_fractional_seconds(value)
+
+        return f'DateTime.Parse("{value_text}")'
+
+    @classmethod
+    def _format_datetime_offset(cls, value: Any) -> str:
+        """Format a database datetime offset as C#."""
+        value_text = cls._remove_fractional_seconds(value)
+
+        return (
+            "new DateTimeOffset("
+            f'DateTime.Parse("{value_text}")'
+            ")"
+        )
+
+    @staticmethod
+    def _remove_fractional_seconds(value: Any) -> str:
+        """Remove fractional seconds from a datetime value."""
+        return str(value).split(".", maxsplit=1)[0]
+
+    @classmethod
+    def _format_csharp_string(cls, value: Any) -> str:
+        """Escape and quote a value for use as a C# string."""
+        return f'"{cls._escape_string(value)}"'
+
+    @staticmethod
+    def _escape_string(value: Any) -> str:
+        """Escape quotes for a C# string literal."""
+        return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
     @staticmethod
     def format_name(name: str) -> str:
-        name_parts = name.split('.')
-        if len(name_parts) == 1:
-            output = name
-        else:
-            output = name_parts[1]
-        output = output.replace('[', '').replace(']', '')
-        return output
+        """Remove schema/table brackets and return the final name."""
+        return name.split(".")[-1].replace("[", "").replace("]", "")
 
     @staticmethod
-    def handle_general_exceptions(method_name: str, exception: Exception) -> None:
-        print(f'CSharpObjectGenerator Method : {method_name}')
-        print('ex : ', exception)
-        tb = traceback.TracebackException.from_exception(exception)
-        print(''.join(tb.stack.format()))
+    def convert_snake_to_pascal_case(input_text: str) -> str:
+        """Convert snake_case text to PascalCase."""
+        return "".join(
+            word.capitalize()
+            for word in input_text.split("_")
+            if word
+        )
 
-    def convert_snake_to_pascal_case(self, input_text) ->  str:
-        res = ''.join(word.capitalize() for word in input_text.split('_'))
-        return res
+    @classmethod
+    def convert_snake_to_camel_case(cls, input_text: str) -> str:
+        """Convert snake_case text to camelCase."""
+        pascal_case = cls.convert_snake_to_pascal_case(input_text)
 
-    def convert_snake_to_camel_case(self, input_text) ->  str:
-        res = self.convert_snake_to_pascal_case(input_text)
-        first_letter = res[0]
-        res = first_letter.lower() + res[1:]
-        return res
+        if not pascal_case:
+            return ""
+
+        return pascal_case[0].lower() + pascal_case[1:]
 
     @staticmethod
-    def convert_pascal_to_snake_case(input_text) ->  str:
-        output: str = ''
-        for letter in input_text:
-            if letter.isupper() and output:
-                output += '_'
-            output += letter.lower()
-        return output
+    def convert_pascal_to_snake_case(input_text: str) -> str:
+        """Convert PascalCase text to snake_case."""
+        output: list[str] = []
+
+        for index, letter in enumerate(input_text):
+            if letter.isupper() and index > 0:
+                output.append("_")
+
+            output.append(letter.lower())
+
+        return "".join(output)

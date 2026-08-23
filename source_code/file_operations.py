@@ -1,7 +1,6 @@
 import os
 import traceback
 
-
 class FileOperations:
     def write_to_file(self, path_file: str, string_data: str) -> None:
         try:

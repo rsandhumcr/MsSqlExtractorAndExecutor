@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TypeAlias
+from functools import wraps
+from typing import Callable, ParamSpec, TypeAlias, TypeVar
 
 import questionary
 from sqlalchemy.engine import URL
@@ -13,11 +14,37 @@ from source_code.file_operations import FileOperations
 
 DatabaseConfigType: TypeAlias = dict[str, str | URL]
 
+P = ParamSpec("P")
+T = TypeVar("T")
+
 logger = logging.getLogger(__name__)
 
 
+def handle_errors(default: T) -> Callable[
+    [Callable[P, T]],
+    Callable[P, T],
+]:
+    """Convert unexpected exceptions into a logged default result."""
+
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        @wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            try:
+                return func(*args, **kwargs)
+            except Exception:
+                logger.exception(
+                    "UserOptions method '%s' failed",
+                    func.__name__,
+                )
+                return default
+
+        return wrapper
+
+    return decorator
+
+
 class UserOptions:
-    """Handles interactive user input and selection."""
+    """Handle interactive user input and selection."""
 
     ABORT = "> Abort execution"
     DATABASE_SELECTION = "> Database selection"
@@ -27,6 +54,23 @@ class UserOptions:
     YES = "Yes"
     NO = "No"
 
+    SCRIPT_OUTPUT_OPTIONS = (
+        "abort",
+        "insert",
+        "insertAdd",
+        "insertPk",
+        "update",
+        "update and insert",
+        "csharp",
+        "csharpV2",
+    )
+
+    RESULT_FORMATS = (
+        "Rows",
+        "Columns",
+        "CSV",
+    )
+
     def __init__(
         self,
         database_operations: DatabaseOperations | None = None,
@@ -35,30 +79,32 @@ class UserOptions:
     ) -> None:
         self.database_operations = (
             database_operations
-            or DatabaseOperations()
+            if database_operations is not None
+            else DatabaseOperations()
         )
 
         self.file_operations = (
             file_operations
-            or FileOperations()
+            if file_operations is not None
+            else FileOperations()
         )
 
         self.database_config = (
             database_config
-            or DatabaseConfig()
+            if database_config is not None
+            else DatabaseConfig()
         )
 
     # ------------------------------------------------------------------
-    # General selection helpers
+    # Prompt helpers
     # ------------------------------------------------------------------
 
     @staticmethod
     def _select(
         message: str,
-        choices: list[str],
+        choices: list[str] | tuple[str, ...],
     ) -> str | None:
         """Display a selection prompt and return the selected value."""
-
         return questionary.select(
             message,
             choices=choices,
@@ -67,273 +113,154 @@ class UserOptions:
     @staticmethod
     def _checkbox(
         message: str,
-        choices: list[str],
+        choices: list[str] | tuple[str, ...],
     ) -> list[str] | None:
         """Display a checkbox prompt and return selected values."""
-
         return questionary.checkbox(
             message,
             choices=choices,
         ).ask()
 
+    @staticmethod
+    def _confirm(message: str) -> bool | None:
+        """Display a confirmation prompt."""
+        return questionary.confirm(message).ask()
+
     # ------------------------------------------------------------------
     # Database selection
     # ------------------------------------------------------------------
 
+    @handle_errors(default=None)
     def get_database_options(self) -> str | None:
         """Prompt the user to select a database."""
-
         return self.get_database_name()
 
+    @handle_errors(default=None)
     def get_database_name(self) -> str | None:
-        """Select a database from the available databases."""
+        """Select a single database."""
+        database_names = self.database_operations.get_database()
 
-        try:
-            database_names = self.database_operations.get_database()
+        return self._select(
+            "Select a database",
+            database_names,
+        )
 
-            return self._select(
-                "Select a database",
-                database_names,
-            )
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "get_database_name",
-                exc,
-            )
-            return None
-
+    @handle_errors(default=[])
     def get_database_names(self) -> list[str]:
-        """Allow the user to select multiple databases."""
+        """Select multiple databases."""
+        database_names = self.database_operations.get_database()
 
-        try:
-            database_names = self.database_operations.get_database()
+        return self._checkbox(
+            "Select databases",
+            database_names,
+        ) or []
 
-            selected = self._checkbox(
-                "Select databases",
-                database_names,
-            )
-
-            return selected or []
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "get_database_names",
-                exc,
-            )
-            return []
-
-    def get_database_config(
-        self,
-    ) -> DatabaseConfigType | None:
+    @handle_errors(default=None)
+    def get_database_config(self) -> DatabaseConfigType | None:
         """Prompt the user to select a database configuration."""
+        config_names = (
+            self.database_config.get_connection_config_names()
+        )
 
-        try:
-            config_names = (
-                self.database_config
-                .get_connection_config_names()
-            )
+        selected_config = self._select(
+            "Select a database configuration",
+            config_names,
+        )
 
-            selected_config = self._select(
-                "Select a database configuration",
-                config_names,
-            )
-
-            if selected_config is None:
-                return None
-
-            return self.database_config.get_connection(
-                selected_config
-            )
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "get_database_config",
-                exc,
-            )
+        if selected_config is None:
             return None
 
+        return self.database_config.get_connection(
+            selected_config
+        )
+
+    @handle_errors(default=None)
     def get_database_config_via_name(
         self,
         db_name: str,
     ) -> DatabaseConfigType | None:
-        """Get a database configuration by its name."""
-
-        try:
-            return self.database_config.get_connection(
-                db_name
-            )
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "get_database_config_via_name",
-                exc,
-            )
-            return None
+        """Get a database configuration by name."""
+        return self.database_config.get_connection(db_name)
 
     # ------------------------------------------------------------------
     # File selection
     # ------------------------------------------------------------------
 
+    @handle_errors(default=None)
     def get_files_in_directory(
         self,
         file_path: str,
     ) -> str | None:
-        """Display files and navigation options for a directory."""
+        """Display files and directory navigation options."""
+        files = self.file_operations.get_files_in_directory(
+            file_path
+        )
 
-        try:
-            files = self.file_operations.get_files_in_directory(
-                file_path
-            )
+        choices = (
+            *files,
+            self.DATABASE_SELECTION,
+            self.PARENT_DIRECTORY,
+            self.ABORT,
+        )
 
-            choices = [
-                *files,
-                self.DATABASE_SELECTION,
-                self.PARENT_DIRECTORY,
-                self.ABORT,
-            ]
-
-            return self._select(
-                "Select a file to execute",
-                choices,
-            )
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "get_files_in_directory",
-                exc,
-            )
-            return None
+        return self._select(
+            "Select a file to execute",
+            choices,
+        )
 
     # ------------------------------------------------------------------
     # Table selection
     # ------------------------------------------------------------------
 
+    @handle_errors(default=None)
     def search_table_name(
         self,
         database_config: DatabaseConfigType,
         search_term: str,
     ) -> str | None:
         """Search for a table and allow the user to select one."""
+        table_names = self.database_operations.search_table_name(
+            database_config,
+            search_term,
+        )
 
-        try:
-            table_names = (
-                self.database_operations.search_table_name(
-                    database_config,
-                    search_term,
-                )
-            )
-
-            choices = [
+        return self._select(
+            "Select a table",
+            (
                 *table_names,
                 self.SEARCH_AGAIN,
-            ]
-
-            return self._select(
-                "Select a table",
-                choices,
-            )
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "search_table_name",
-                exc,
-            )
-            return None
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Yes / No
     # ------------------------------------------------------------------
 
-    def get_yes_no_question(
-        self,
-        question: str,
-    ) -> bool:
+    @handle_errors(default=False)
+    def get_yes_no_question(self, question: str) -> bool:
         """Ask the user a Yes/No question."""
-
-        try:
-            answer = self._select(
-                question,
-                [self.YES, self.NO],
-            )
-
-            return answer == self.YES
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "get_yes_no_question",
-                exc,
-            )
-            return False
+        return self._confirm(question) is True
 
     # ------------------------------------------------------------------
     # Script options
     # ------------------------------------------------------------------
 
+    @handle_errors(default=None)
     def get_script_output_options(self) -> str | None:
         """Select the type of script/output to generate."""
-
-        options = [
-            "abort",
-            "insert",
-            "insertAdd",
-            "insertPk",
-            "update",
-            "update and insert",
-            "csharp",
-            "csharpV2",
-        ]
-
-        try:
-            return self._select(
-                "Select an option",
-                options,
-            )
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "get_script_output_options",
-                exc,
-            )
-            return None
+        return self._select(
+            "Select an option",
+            self.SCRIPT_OUTPUT_OPTIONS,
+        )
 
     # ------------------------------------------------------------------
     # Result formatting
     # ------------------------------------------------------------------
 
+    @handle_errors(default=None)
     def select_row_or_columns_result(self) -> str | None:
         """Select the format for displaying SQL results."""
-
-        try:
-            return self._select(
-                "Select a result format",
-                [
-                    "Rows",
-                    "Columns",
-                    "CSV",
-                ],
-            )
-
-        except Exception as exc:
-            self.handle_general_exception(
-                "select_row_or_columns_result",
-                exc,
-            )
-            return None
-
-    # ------------------------------------------------------------------
-    # Error handling
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def handle_general_exception(
-        method_name: str,
-        exception: Exception,
-    ) -> None:
-        """Log an unexpected exception."""
-
-        logger.exception(
-            "UserOptions method '%s' failed",
-            method_name,
-            exc_info=exception,
+        return self._select(
+            "Select a result format",
+            self.RESULT_FORMATS,
         )

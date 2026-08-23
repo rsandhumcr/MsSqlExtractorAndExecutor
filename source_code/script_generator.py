@@ -1,321 +1,589 @@
+from __future__ import annotations
+
+import logging
+from collections.abc import Sequence
 from datetime import datetime
-import traceback
-from typing import Any, Literal
+from typing import Any
 
-from sqlalchemy import ForeignKey
-from sqlalchemy.sql.type_api import TypeEngine
-
-from source_code.database_operations import DatabaseOperations
-from source_code.database_operations import TableColumn
-from source_code.database_operations import ResultSet
 from tqdm import tqdm
 
+from source_code.database_operations import ResultSet, TableColumn
+
+
+logger = logging.getLogger(__name__)
+
+
 def get_current_timestamp() -> str:
-    return f"--- {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}  \r\n\r\n"
+    """Return the current timestamp used by generated scripts."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return f"--- {timestamp}\r\n\r\n"
 
 
 class ScriptGenerator:
+    """Generate INSERT and UPDATE SQL scripts from query results."""
 
-    def create_insert_statement(self, database_name: str, table_name: str,
-                                table_data: ResultSet, add_record: bool) -> str:
-        try:
-            show_identity_statement = self.has_table_columns_have_autoincrement(table_data)
-            auto_columns = self.get_table_columns_are_autoincrement(table_data)
-            query = table_data['query']
-            output_sql = f'---   {query} \n'
-            if not add_record:
-                output_sql += f'IF NOT EXISTS( {query})   \n'
-                output_sql += f' BEGIN  \n'
-            if add_record == False and show_identity_statement:
-                output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
-            insert_start_text = f'   INSERT INTO {table_name} (\n  '
-            loop_break_index = 5
-            loop_counter = 0
+    _VALUES_PER_LINE = 5
+    _ROWS_PER_INSERT = 100
 
-            column_text = ''
-            auto_row_index = []
-            for row_index, column in enumerate(table_data['columns']):
-                if len(column_text) > 0:
-                    column_text += ' ,'
-                is_auto_row = column.name in auto_columns
-                if is_auto_row:
-                    auto_row_index.append(row_index)
-                if add_record and is_auto_row == False:
-                    column_text += f"[{column.name}] "
-                if not add_record:
-                    column_text += f"[{column.name}] "
-                loop_counter += 1
-                if loop_counter >= loop_break_index:
-                    column_text += '\n    '
-                    loop_counter = 0
+    _BOOLEAN_TYPES = (
+        "BOOLEAN",
+        "BIT",
+    )
 
-            columns_section_text = f' {column_text})\n    VALUES \n'
-            head_section_text = f' {insert_start_text} {columns_section_text}'
-            output_sql += head_section_text
-            loop_counter = 0
-            data_text = ''
-            bundle_count =0
-            # for row_data in table_data['data']:
-            #for row_data in tqdm(table_data['data']):
-            for row_index, dataRow in enumerate(tqdm(table_data['data'])):
-                if bundle_count > 0:
-                    data_text += ', \n    '
-                data_text += '    ('
-                add_to_new_row = False
-                for column_index, data in enumerate(dataRow):
-                    is_auto_row = column_index in auto_row_index
-                    if add_to_new_row:
-                        data_text += ' ,'
-                    if add_record and is_auto_row == False:
-                        data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
-                        add_to_new_row = True
-                    if not add_record:
-                        data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
-                        add_to_new_row = True
-                    loop_counter += 1
-                    if loop_counter >= loop_break_index:
-                        data_text += '\n    '
-                        loop_counter = 0
-                data_text += ')'
-                bundle_count +=1
-                if bundle_count >= 100:
-                    bundle_count =0
-                    data_text += f";\n   {head_section_text}"
-                loop_counter = 0
+    _STRING_TYPES = (
+        "UNIQUEIDENTIFIER",
+        "TEXT",
+        "NVARCHAR",
+        "VARCHAR",
+        "NCHAR",
+        "CHAR",
+    )
 
-            output_sql += f'  {data_text};\n\n'
-            if add_record == False and show_identity_statement:
-                output_sql += f'   SET IDENTITY_INSERT {table_name} OFF; \n'
-            if not add_record:
-                output_sql += f' END  \n\n'
-            output_sql += get_current_timestamp()
-            return output_sql
-        except Exception as exc:
-            self.handle_general_exceptions('create_insert_statement', exc)
+    _DATETIME_TYPES = (
+        "DATETIMEOFFSET",
+        "DATETIME",
+        "DATE",
+        "TIMESTAMP",
+        "TIME",
+    )
 
-    def create_update_statement(self, database_name: str, table_name: str,
-                                table_data: ResultSet,
-                                primary_columns: TableColumn) -> str:
-        try:
-            primary_column_index = self.find_column_primary_indexes(primary_columns, table_data)
+    _NUMERIC_TYPES = (
+        "INTEGER",
+        "DECIMAL",
+        "BIGINT",
+        "FLOAT",
+        "INT",
+        "NUMERIC",
+        "REAL",
+        "SMALLINT",
+        "TINYINT",
+        "MONEY",
+    )
 
-            number_of_columns = len(table_data['columns'])
+    def create_insert_statement(
+        self,
+        database_name: str,
+        table_name: str,
+        table_data: ResultSet,
+        add_record: bool,
+    ) -> str:
+        """Generate an INSERT statement for the supplied rows."""
 
-            query = table_data['query']
+        columns = table_data["columns"]
+        rows = table_data["data"]
+        query = table_data["query"]
 
-            output_sql = f' ---   {query} \n'
-            output_sql += f'IF EXISTS( {query} ) \n'
-            output_sql += f'BEGIN  \n\n'
+        auto_columns = self.get_table_columns_are_autoincrement(
+            table_data
+        )
 
-            # for row_data in table_data['data']:
-            for row_data in tqdm(table_data['data']):
+        include_identity = (
+            not add_record
+            and bool(auto_columns)
+        )
 
-                loop_break_index = 5
-                loop_counter = 0
-                output_sql += f'   UPDATE {table_name} \n'
-                output_sql += '    SET '
-                column_text = ''
+        insert_columns = [
+            column.name
+            for column in columns
+            if not (add_record and column.name in auto_columns)
+        ]
 
-                for loop_columns in range(0, number_of_columns):
-                    if loop_columns not in primary_column_index:
-                        if len(column_text) > 0:
-                            column_text += ' ,'
-                        column = table_data["columns"][loop_columns].name
-                        value = self.format_row_data_type_with_column(row_data[loop_columns],
-                                                                      table_data['columns'][loop_columns])
-                        column_text += f" {column} = {value}"
-                        loop_counter += 1
-                        if loop_counter >= loop_break_index:
-                            column_text += '\n    '
-                            loop_counter = 0
+        output: list[str] = [
+            f"---   {query}\n",
+        ]
 
-                output_sql += f'  {column_text}\n'
+        if not add_record:
+            output.extend(
+                [
+                    f"IF NOT EXISTS ({query})\n",
+                    "BEGIN\n",
+                ]
+            )
 
-                where_text = ''
+        if include_identity:
+            output.append(
+                f"    SET IDENTITY_INSERT {table_name} ON;\n"
+            )
 
-                for loop_columns in range(0, number_of_columns):
-                    if loop_columns in primary_column_index:
-                        if len(where_text) > 0:
-                            where_text += '\n    AND ,'
-                        column = table_data['columns'][loop_columns].name
-                        value = self.format_row_data_type_with_column(
-                            row_data[loop_columns], table_data['columns'][loop_columns])
-                        where_text += f"{column} = {value}"
-                output_sql += f'    WHERE {where_text};\n'
-            output_sql += f'END  \n\n'
-            output_sql += get_current_timestamp()
-            return output_sql
-        except Exception as exc:
-            self.handle_general_exceptions('create_update_statement', exc)
+        output.extend(
+            self._build_insert_batches(
+                table_name=table_name,
+                columns=insert_columns,
+                rows=rows,
+                table_columns=columns,
+                auto_columns=auto_columns,
+                skip_auto_columns=add_record,
+            )
+        )
 
-    def create_insert_pk_statement(self, database_name: str, table_name: str,
-                                table_data: ResultSet,
-                                primary_columns: TableColumn) -> str:
-        try:
-            primary_column_index = self.find_column_primary_indexes(primary_columns, table_data)
+        if include_identity:
+            output.append(
+                f"    SET IDENTITY_INSERT {table_name} OFF;\n"
+            )
 
-            number_of_columns = len(table_data['columns'])
+        if not add_record:
+            output.append("END\n\n")
 
-            query = table_data['query']
+        output.append(get_current_timestamp())
 
-            output_sql = f' ---   {query} \n'
+        return "".join(output)
 
-            #for row_data in table_data['data']:
-            for row_index_outter, row_data in enumerate(tqdm(table_data['data'])):
-            #for row_data in tqdm(table_data['data']):
+    def _build_insert_batches(
+        self,
+        table_name: str,
+        columns: list[str],
+        rows: Sequence[Sequence[Any]],
+        table_columns: Sequence[TableColumn],
+        auto_columns: list[str],
+        skip_auto_columns: bool,
+    ) -> list[str]:
+        """Build INSERT statements in batches."""
 
-                where_text = ''
-                for loop_columns in range(0, number_of_columns):
-                    if loop_columns in primary_column_index:
-                        if len(where_text) > 0:
-                            where_text += '\n    AND ,'
-                        column = table_data['columns'][loop_columns]['name']
-                        value = self.format_row_data_type_with_column(
-                            row_data[loop_columns], table_data['columns'][loop_columns])
-                        where_text += f"{column} = {value}"
-                output_sql += f'IF NOT EXISTS( SELECT * FROM {table_name} WHERE {where_text})\n'
-                output_sql +=f"BEGIN \n"
+        output: list[str] = []
 
-                output_sql += f'   SET IDENTITY_INSERT {table_name} ON; \n'
-                insert_start_text = f'   INSERT INTO {table_name} (\n  '
-                loop_break_index = 5
-                loop_counter = 0
+        for start in range(
+            0,
+            len(rows),
+            self._ROWS_PER_INSERT,
+        ):
+            batch = rows[
+                start:start + self._ROWS_PER_INSERT
+            ]
 
-                column_text = ''
-                for row_index, column in enumerate(table_data['columns']):
-                    if len(column_text) > 0:
-                        column_text += ' ,'
-                    column_text += f"[{column['name']}] "
-                    loop_counter += 1
-                    if loop_counter >= loop_break_index:
-                        column_text += '\n    '
-                        loop_counter = 0
+            output.append(
+                self._build_insert_header(
+                    table_name,
+                    columns,
+                )
+            )
 
-                columns_section_text = f' {column_text})\n    VALUES \n'
-                head_section_text = f' {insert_start_text} {columns_section_text}'
-                output_sql += head_section_text
-                loop_counter = 0
-                data_text = ''
+            values = [
+                self._format_insert_row(
+                    row=row,
+                    table_columns=table_columns,
+                    auto_columns=auto_columns,
+                    skip_auto_columns=skip_auto_columns,
+                )
+                for row in tqdm(batch)
+            ]
 
-                data_text += '   ('
-                add_to_new_row = False
-                for column_index, data in enumerate(row_data):
-                    if add_to_new_row:
-                        data_text += ' ,'
-                    data_text += self.format_row_data_type_with_column(data, table_data['columns'][column_index])
-                    add_to_new_row = True
-                    loop_counter += 1
-                    if loop_counter >= loop_break_index:
-                        data_text += '\n    '
-                        loop_counter = 0
-                data_text += ')'
+            output.append(
+                ",\n".join(values)
+            )
 
-                output_sql += f'  {data_text};\n\n'
-                output_sql += f'   SET IDENTITY_INSERT {table_name} OFF; \n'
-                output_sql += f' END \n'
-                output_sql += f' ----Row {row_index_outter}\n\n'
+            output.append(";\n\n")
 
-            output_sql += get_current_timestamp()
-            return output_sql
-        except Exception as exc:
-            self.handle_general_exceptions('create_update_statement', exc)
+        return output
 
-    def find_column_primary_indexes(self, primary_columns: list[
-        dict[str | int, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]], table_data: dict[
-        str | int, list[Any] | list[
-            dict[str, Literal["auto", "ignore_fk"] | str | set[ForeignKey] | TypeEngine | bool]]]) -> list[Any]:
-        primary_column_index = []
-        for index, columns in enumerate(table_data["columns"]):
-            for primary_column in primary_columns:
-                if columns.name == primary_column.name:
-                    primary_column_index.append(index)
-        return primary_column_index
+    def _build_insert_header(
+        self,
+        table_name: str,
+        columns: Sequence[str],
+    ) -> str:
+        """Build the INSERT INTO section."""
+
+        formatted_columns = self._format_columns(
+            columns
+        )
+
+        return (
+            f"    INSERT INTO {table_name} (\n"
+            f"{formatted_columns}\n"
+            f"    )\n"
+            f"    VALUES\n"
+        )
+
+    def _format_insert_row(
+        self,
+        row: Sequence[Any],
+        table_columns: Sequence[TableColumn],
+        auto_columns: Sequence[str],
+        skip_auto_columns: bool,
+    ) -> str:
+        """Format one SQL VALUES row."""
+
+        values: list[str] = []
+
+        for column, value in zip(
+            table_columns,
+            row,
+            strict=True,
+        ):
+            if (
+                skip_auto_columns
+                and column.name in auto_columns
+            ):
+                continue
+
+            values.append(
+                self.format_row_data_type_with_column(
+                    value,
+                    column,
+                )
+            )
+
+        formatted_values = self._format_values(
+            values
+        )
+
+        return f"    ({formatted_values})"
+
+    def create_update_statement(
+        self,
+        database_name: str,
+        table_name: str,
+        table_data: ResultSet,
+        primary_columns: Sequence[TableColumn],
+    ) -> str:
+        """Generate UPDATE statements for the supplied rows."""
+
+        primary_indexes = self.find_column_primary_indexes(
+            primary_columns,
+            table_data,
+        )
+
+        query = table_data["query"]
+
+        output: list[str] = [
+            f"---   {query}\n",
+            f"IF EXISTS ({query})\n",
+            "BEGIN\n\n",
+        ]
+
+        for row_data in tqdm(table_data["data"]):
+            set_values = [
+                self._format_assignment(
+                    column,
+                    row_data[index],
+                )
+                for index, column in enumerate(
+                    table_data["columns"]
+                )
+                if index not in primary_indexes
+            ]
+
+            where_values = [
+                self._format_assignment(
+                    column,
+                    row_data[index],
+                )
+                for index, column in enumerate(
+                    table_data["columns"]
+                )
+                if index in primary_indexes
+            ]
+
+            output.extend(
+                [
+                    f"    UPDATE {table_name}\n",
+                    "    SET\n",
+                    self._format_conditions(
+                        set_values,
+                        separator=",",
+                    ),
+                    "\n",
+                    "    WHERE\n",
+                    self._format_conditions(
+                        where_values,
+                        separator=" AND",
+                    ),
+                    ";\n\n",
+                ]
+            )
+
+        output.extend(
+            [
+                "END\n\n",
+                get_current_timestamp(),
+            ]
+        )
+
+        return "".join(output)
+
+    def create_insert_pk_statement(
+        self,
+        database_name: str,
+        table_name: str,
+        table_data: ResultSet,
+        primary_columns: Sequence[TableColumn],
+    ) -> str:
+        """Generate INSERT statements guarded by primary-key checks."""
+
+        primary_indexes = self.find_column_primary_indexes(
+            primary_columns,
+            table_data,
+        )
+
+        columns = table_data["columns"]
+
+        output: list[str] = [
+            f"---   {table_data['query']}\n",
+        ]
+
+        for row_index, row_data in enumerate(
+            tqdm(table_data["data"])
+        ):
+            where_values = [
+                self._format_assignment(
+                    columns[index],
+                    row_data[index],
+                )
+                for index in primary_indexes
+            ]
+
+            output.extend(
+                [
+                    f"IF NOT EXISTS (\n",
+                    f"    SELECT 1\n",
+                    f"    FROM {table_name}\n",
+                    f"    WHERE\n",
+                    self._format_conditions(
+                        where_values,
+                        separator=" AND",
+                    ),
+                    "\n",
+                    ")\n",
+                    "BEGIN\n",
+                    f"    SET IDENTITY_INSERT "
+                    f"{table_name} ON;\n",
+                    self._build_insert_header(
+                        table_name,
+                        [
+                            column.name
+                            for column in columns
+                        ],
+                    ),
+                    self._format_insert_row(
+                        row=row_data,
+                        table_columns=columns,
+                        auto_columns=[],
+                        skip_auto_columns=False,
+                    ),
+                    ";\n",
+                    f"    SET IDENTITY_INSERT "
+                    f"{table_name} OFF;\n",
+                    "END\n",
+                    f"---- Row {row_index}\n\n",
+                ]
+            )
+
+        output.append(get_current_timestamp())
+
+        return "".join(output)
+
+    def find_column_primary_indexes(
+        self,
+        primary_columns: Sequence[TableColumn],
+        table_data: ResultSet,
+    ) -> list[int]:
+        """Return indexes of primary-key columns."""
+
+        primary_names = {
+            column.name
+            for column in primary_columns
+        }
+
+        return [
+            index
+            for index, column in enumerate(
+                table_data["columns"]
+            )
+            if column.name in primary_names
+        ]
 
     @staticmethod
-    def has_table_columns_have_autoincrement(table_data: ResultSet) -> bool:
-        has_autoincrement = False
-        for dataRow in table_data["columns"]:
-            if dataRow.autoincrement:
-                if not has_autoincrement:
-                    has_autoincrement = True
-                    break
-        return has_autoincrement
+    def has_table_columns_have_autoincrement(
+        table_data: ResultSet,
+    ) -> bool:
+        """Return whether the table contains an auto-increment column."""
+
+        return any(
+            column.autoincrement
+            for column in table_data["columns"]
+        )
 
     @staticmethod
-    def get_table_columns_are_autoincrement(table_data: ResultSet) -> [str]:
-        autoincrement_columns = []
-        for dataRow in table_data["columns"]:
-            if dataRow.autoincrement:
-                autoincrement_columns.append(dataRow.name)
-        return autoincrement_columns
+    def get_table_columns_are_autoincrement(
+        table_data: ResultSet,
+    ) -> list[str]:
+        """Return names of auto-increment columns."""
 
-    def format_row_data_type_with_column(self, row_data: any,
-                                         column_data: TableColumn) -> str:
-        try:
-            if row_data is None:
-                return 'NULL'
+        return [
+            column.name
+            for column in table_data["columns"]
+            if column.autoincrement
+        ]
 
-            type_description = str(column_data.type)
+    def format_row_data_type_with_column(
+        self,
+        row_data: Any,
+        column_data: TableColumn,
+    ) -> str:
+        """Convert a database value into a SQL literal."""
 
-            is_numeric = False
-            is_string = False
-            is_datetime = False
-            is_varbinary = False
-            is_xml = False
+        if row_data is None:
+            return "NULL"
 
-            is_bool = type_description.startswith(('BOOLEAN', 'BIT'))
-            if not is_bool:
-                is_string = type_description.startswith(('UNIQUEIDENTIFIER', 'TEXT', 'NVARCHAR', 'VARCHAR', 'NCHAR', 'CHAR'))
-                if not is_string:
-                    is_datetime = type_description.startswith(('DATETIMEOFFSET', 'DATETIME', 'DATE',
-                                                               'TIMESTAMP', 'TIME'))
-                    if not is_datetime:
-                        numbers_types = ('INTEGER', 'DECIMAL', 'BIGINT', 'FLOAT', 'INT', 'NUMERIC', 'REAL', 'SMALLINT',
-                                         'TINYINT', 'MONEY')
-                        is_numeric = type_description.startswith(numbers_types)
-                        if not is_numeric:
-                            is_varbinary = type_description.startswith('VARBINARY')
-                            if not is_varbinary:
-                                is_xml = type_description.startswith('XML')
-                                if not is_xml:
-                                    print(f"Warning unknown type '{row_data}' : '{type_description}'")
+        type_description = str(
+            column_data.type
+        ).upper()
 
-            if is_numeric:
-                output_text = str(row_data)
-            elif is_string:
-                row_item = row_data.replace("'", "''")
-                output_text = f"'{row_item}'"
-            elif is_datetime:
-                datetime_with_extra = str(row_data)
-                datetime = datetime_with_extra.split('.')
-                row_item = str(datetime[0])
-                output_text = f"'{row_item}'"
-            elif is_bool:
-                row_item = '0'
-                if row_data == 'True':
-                    row_item = '1'
-                output_text = row_item
-            elif is_varbinary:
-                row_item = str(row_data).replace("'", "''")
-                output_text = f"CONVERT(varbinary, '{row_item}')"
-            elif is_xml:
-                row_item = str(row_data).replace("'", "''")
-                output_text = f"CONVERT(XML, '{row_item}')"
-            else:
-                row_item = str(row_data).replace("'", "''")
-                output_text = f"'{row_item}'"
+        if type_description.startswith(
+            self._BOOLEAN_TYPES
+        ):
+            return self._format_boolean(row_data)
 
-            return output_text
-        except Exception as exc:
-            self.handle_general_exceptions('format_row_data_type_with_column', exc)
+        if type_description.startswith(
+            self._NUMERIC_TYPES
+        ):
+            return str(row_data)
+
+        if type_description.startswith(
+            self._STRING_TYPES
+        ):
+            return self._format_sql_string(row_data)
+
+        if type_description.startswith(
+            self._DATETIME_TYPES
+        ):
+            return self._format_datetime(row_data)
+
+        if type_description.startswith("VARBINARY"):
+            return self._format_varbinary(row_data)
+
+        if type_description.startswith("XML"):
+            return self._format_xml(row_data)
+
+        logger.warning(
+            "Unknown database type '%s' for value '%s'",
+            type_description,
+            row_data,
+        )
+
+        return self._format_sql_string(row_data)
 
     @staticmethod
-    def handle_general_exceptions(method_name: str, exception: Exception) -> None:
-        print(f'ScriptGenerator Method : {method_name}')
-        print('ex : ', exception)
-        tb = traceback.TracebackException.from_exception(exception)
-        print(''.join(tb.stack.format()))
+    def _format_boolean(value: Any) -> str:
+        """Convert a database boolean to SQL 0/1."""
+
+        if isinstance(value, bool):
+            return "1" if value else "0"
+
+        return (
+            "1"
+            if str(value).strip().lower() == "true"
+            else "0"
+        )
+
+    @staticmethod
+    def _format_sql_string(value: Any) -> str:
+        """Escape and quote a SQL string."""
+
+        escaped = str(value).replace("'", "''")
+
+        return f"'{escaped}'"
+
+    @staticmethod
+    def _format_datetime(value: Any) -> str:
+        """Format a datetime value as a SQL literal."""
+
+        value_text = str(value).split(
+            ".",
+            maxsplit=1,
+        )[0]
+
+        escaped = value_text.replace(
+            "'",
+            "''",
+        )
+
+        return f"'{escaped}'"
+
+    @staticmethod
+    def _format_varbinary(value: Any) -> str:
+        """Format a VARBINARY value."""
+
+        escaped = str(value).replace("'", "''")
+
+        return (
+            f"CONVERT(varbinary, '{escaped}')"
+        )
+
+    @staticmethod
+    def _format_xml(value: Any) -> str:
+        """Format an XML value."""
+
+        escaped = str(value).replace("'", "''")
+
+        return f"CONVERT(XML, '{escaped}')"
+
+    @staticmethod
+    def _format_columns(
+        columns: Sequence[str],
+    ) -> str:
+        """Format column names for an INSERT statement."""
+
+        return ",\n".join(
+            f"        [{column}]"
+            for column in columns
+        )
+
+    @staticmethod
+    def _format_values(
+        values: Sequence[str],
+    ) -> str:
+        """Format values into groups of five per line."""
+
+        lines: list[str] = []
+
+        for start in range(
+            0,
+            len(values),
+            ScriptGenerator._VALUES_PER_LINE,
+        ):
+            lines.append(
+                "        "
+                + " ,".join(
+                    values[
+                        start:start
+                        + ScriptGenerator._VALUES_PER_LINE
+                    ]
+                )
+            )
+
+        return "\n".join(lines)
+
+    def _format_assignment(
+        self,
+        column: TableColumn,
+        value: Any,
+    ) -> str:
+        """Format a column = value expression."""
+
+        return (
+            f"[{column.name}] = "
+            f"{self.format_row_data_type_with_column(value, column)}"
+        )
+
+    @staticmethod
+    def _format_conditions(
+        conditions: Sequence[str],
+        separator: str,
+    ) -> str:
+        """Format SQL SET/WHERE conditions."""
+
+        return (
+            f"        {separator}\n".join(
+                conditions
+            )
+        )
 
     @staticmethod
     def time_stamp_message(message: str) -> str:
-        return f"{message} - {datetime.today().strftime('%Y-%m-%d %H:%M:%S')}"
+        """Append a timestamp to a message."""
+
+        timestamp = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        return f"{message} - {timestamp}"
