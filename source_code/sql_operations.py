@@ -77,10 +77,10 @@ class SqlOperations:
     def extract_relationship_data(self, table_info: ResultSet) -> RelationQuery:
         relationship_data = []
         for column_index, columns in enumerate(table_info['columns']):
-            if columns['foreign_keys']:
+            if columns.foreign_keys:
                 for row_index, row in enumerate(table_info['data']):
                     fk_id = row[column_index]
-                    for fk_index, foreign_key in enumerate(columns['foreign_keys']):
+                    for fk_index, foreign_key in enumerate(columns.foreign_keys):
                         new_rel = [fk_id, self.format_foreign_key(foreign_key)]
                         relationship_data.append(new_rel)
         return relationship_data
@@ -90,7 +90,7 @@ class SqlOperations:
         table_columns = table_info['columns']
         has_relations = False
         for columns in table_columns:
-            if columns['foreign_keys']:
+            if columns.foreign_keys:
                 has_relations = True
                 break
         return has_relations

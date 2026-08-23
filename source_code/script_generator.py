@@ -276,13 +276,13 @@ class ScriptGenerator:
             output.extend(
                 [
                     f"    UPDATE {table_name}\n",
-                    "    SET\n",
+                    "    SET\n     ",
                     self._format_conditions(
                         set_values,
                         separator=",",
                     ),
                     "\n",
-                    "    WHERE\n",
+                    "    WHERE\n     ",
                     self._format_conditions(
                         where_values,
                         separator=" AND",
@@ -573,7 +573,7 @@ class ScriptGenerator:
         """Format SQL SET/WHERE conditions."""
 
         return (
-            f"        {separator}\n".join(
+            f" {separator}\n     ".join(
                 conditions
             )
         )
