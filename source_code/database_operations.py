@@ -28,7 +28,7 @@ class ResultSet:
     data: list[Any]
     columns: list[TableColumn]
     types: list[str]
-
+    query: str
 
 @dataclass
 class TableColumn:
@@ -93,38 +93,17 @@ class DatabaseOperations:
 
         return engine
 
-    def _create_engine(
-        self,
-        database_config: DatabaseConfigType,
-    ) -> Engine:
+    def _create_engine(self, database_config: DatabaseConfigType) -> Engine:
         """Create an SQLAlchemy engine."""
-
         connection_string = database_config["connection_str"]
-
-        if database_config.get(
-            "use_azure_identity_entra",
-            False,
-        ):
+        if database_config.get("use_azure_identity_entra",    False):
             access_token = self.get_azure_cli_auth_token()
+            return create_engine(connection_string,
+                                 connect_args={"attrs_before": {SQL_COPT_SS_ACCESS_TOKEN: access_token}})
 
-            return create_engine(
-                connection_string,
-                connect_args={
-                    "attrs_before": {
-                        SQL_COPT_SS_ACCESS_TOKEN: access_token
-                    }
-                },
-            )
+        return create_engine(connection_string, echo=self.enable_logging)
 
-        return create_engine(
-            connection_string,
-            echo=self.enable_logging,
-        )
-
-    def get_connection_object(
-        self,
-        database_config: DatabaseConfigType,
-    ) -> Connection:
+    def get_connection_object(self, database_config: DatabaseConfigType) -> Connection:
         """
         Return an SQLAlchemy connection.
 
@@ -158,25 +137,17 @@ class DatabaseOperations:
 
         credential = AzureCliCredential()
 
-        access_token = credential.get_token(
-            "https://database.windows.net/"
-        )
+        access_token = credential.get_token("https://database.windows.net/")
 
         token_bytes = access_token.token.encode("utf-16-le")
 
-        return struct.pack(
-            "=i",
-            len(token_bytes),
-        ) + token_bytes
+        return struct.pack("=i",len(token_bytes)) + token_bytes
 
     # ------------------------------------------------------------------
     # Database discovery
     # ------------------------------------------------------------------
 
-    def get_database(
-        self,
-        database_config: DatabaseConfigType,
-    ) -> list[str]:
+    def get_database(self, database_config: DatabaseConfigType) -> list[str]:
         """Return available database names."""
 
         query = text(
@@ -187,10 +158,7 @@ class DatabaseOperations:
             """
         )
 
-        result = self._execute_query(
-            database_config,
-            query,
-        )
+        result = self._execute_query(database_config, query)
 
         return [
             row[0]
@@ -201,11 +169,7 @@ class DatabaseOperations:
     # Table discovery
     # ------------------------------------------------------------------
 
-    def search_table_name(
-        self,
-        database_config: DatabaseConfigType,
-        table_name_search: str,
-    ) -> list[str]:
+    def search_table_name(self, database_config: DatabaseConfigType, table_name_search: str) -> list[str]:
         """Search for tables matching a name."""
 
         query = text(
@@ -220,13 +184,7 @@ class DatabaseOperations:
             """
         )
 
-        result = self._execute_query(
-            database_config,
-            query,
-            {
-                "search_term": f"%{table_name_search}%"
-            },
-        )
+        result = self._execute_query(database_config, query,{"search_term": f"%{table_name_search}%"})
 
         return [
             row[0]
@@ -237,26 +195,13 @@ class DatabaseOperations:
     # Table data
     # ------------------------------------------------------------------
 
-    def get_table_data(
-        self,
-        database_config: DatabaseConfigType,
-        table_name: str,
-        where_clause: str = "",
-    ) -> dict[str, Any]:
+    def get_table_data(self, database_config: DatabaseConfigType, table_name: str,
+                       where_clause: str = "") -> dict[str, Any]:
         """Return table data and column metadata."""
 
-        table_data = self.get_table_query_data(
-            database_config,
-            table_name,
-            where_clause,
-        )
+        table_data = self.get_table_query_data(database_config, table_name, where_clause)
 
-        table_metadata = (
-            self.get_table_meta_data_simple_string(
-                database_config,
-                table_name,
-            )
-        )
+        table_metadata = (self.get_table_meta_data_simple_string(database_config, table_name))
 
         return {
             "query": table_data["query"],
@@ -264,12 +209,8 @@ class DatabaseOperations:
             "columns": table_metadata,
         }
 
-    def get_table_query_data(
-        self,
-        database_config: DatabaseConfigType,
-        table_name: str,
-        where_clause: str = "",
-    ) -> dict[str, Any]:
+    def get_table_query_data(self, database_config: DatabaseConfigType, table_name: str,
+        where_clause: str = "") -> dict[str, Any]:
         """
         Execute SELECT * against a table.
 
@@ -298,12 +239,8 @@ class DatabaseOperations:
     # Table metadata
     # ------------------------------------------------------------------
 
-    def get_table_meta_data(
-        self,
-        database_config: DatabaseConfigType,
-        schema_name: str,
-        table_name: str,
-    ) -> list[TableColumn]:
+    def get_table_meta_data(self, database_config: DatabaseConfigType, schema_name: str,
+        table_name: str) -> list[TableColumn]:
         """Return SQLAlchemy metadata for a table."""
 
         engine = self._get_engine(database_config)
@@ -311,40 +248,22 @@ class DatabaseOperations:
         metadata = MetaData()
 
         with engine.connect() as connection:
-            table = Table(
-                table_name,
-                metadata,
-                schema=schema_name,
-                autoload_with=connection,
-            )
+            table = Table( table_name, metadata, schema=schema_name, autoload_with=connection)
 
             columns: list[TableColumn] = []
 
             for column in table.columns:
                 columns.append(
-                    TableColumn(
-                        name=column.name,
-                        type=column.type,
-                        autoincrement=column.autoincrement,
-                        foreign_keys=set(column.foreign_keys),
-                        primary_key=column.primary_key,
-                    )
+                    TableColumn( name=column.name, type=column.type, autoincrement=column.autoincrement,
+                        foreign_keys=set(column.foreign_keys), primary_key=column.primary_key)
                 )
 
         return columns
 
-    def get_table_meta_data_simple_string(
-        self,
-        database_config: DatabaseConfigType,
-        table_name: str,
-    ) -> list[TableColumn]:
+    def get_table_meta_data_simple_string(self, database_config: DatabaseConfigType, table_name: str) -> list[TableColumn]:
         """Get table metadata from a schema.table string."""
 
-        schema_name, table_name = (
-            self.extract_schema_table_name(
-                table_name
-            )
-        )
+        schema_name, table_name = (self.extract_schema_table_name(table_name))
 
         return self.get_table_meta_data(
             database_config,
@@ -353,9 +272,7 @@ class DatabaseOperations:
         )
 
     @staticmethod
-    def extract_schema_table_name(
-        database_table: str,
-    ) -> tuple[str, str]:
+    def extract_schema_table_name(database_table: str) -> tuple[str, str]:
         """
         Extract schema and table names.
 
@@ -382,9 +299,7 @@ class DatabaseOperations:
         )
 
     @staticmethod
-    def get_primary_columns(
-        table_data: dict[str, Any],
-    ) -> list[TableColumn]:
+    def get_primary_columns(table_data: dict[str, Any]) -> list[TableColumn]:
         """Return the primary-key columns from table metadata."""
 
         return [
@@ -397,40 +312,21 @@ class DatabaseOperations:
     # SQL execution
     # ------------------------------------------------------------------
 
-    def execute_sql_script_no_data(
-        self,
-        database_config: DatabaseConfigType,
-        sql_script: str,
-    ) -> None:
+    def execute_sql_script_no_data(self, database_config: DatabaseConfigType, sql_script: str) -> None:
         """Execute a SQL script without returning results."""
 
         engine = self._get_engine(database_config)
 
         with engine.begin() as connection:
-            connection.execute(
-                text(sql_script)
-            )
+            connection.execute( text(sql_script))
 
-    def execute_sql_script(
-        self,
-        database_config: DatabaseConfigType,
-        sql_script: str,
-        parameters: dict[str, Any] | None = None,
-    ) -> ResultSet:
+    def execute_sql_script( self, database_config: DatabaseConfigType, sql_script: str,
+        parameters: dict[str, Any] | None = None) -> ResultSet:
         """Execute SQL and return its result set."""
 
-        return self._execute_query(
-            database_config,
-            text(sql_script),
-            parameters,
-        )
+        return self._execute_query( database_config, text(sql_script), parameters)
 
-    def _execute_query(
-        self,
-        database_config: DatabaseConfigType,
-        query: Any,
-        parameters: dict[str, Any] | None = None,
-    ) -> ResultSet:
+    def _execute_query(self,  database_config: DatabaseConfigType, query: Any,  parameters: dict[str, Any] | None = None) -> ResultSet:
         """Execute a query and return a ResultSet."""
 
         engine = self._get_engine(database_config)
@@ -447,24 +343,19 @@ class DatabaseOperations:
 
             data = result.fetchall()
 
-        return ResultSet(
-            data=data,
-            columns=columns,
+        return ResultSet( data=data, columns=columns,
             types=[
                 type(value).__name__
                 for value in data[0]
             ] if data else [],
+            query=query
         )
 
     # ------------------------------------------------------------------
     # Raw DB-API execution
     # ------------------------------------------------------------------
 
-    def execute_sql_script_raw_connection(
-        self,
-        database_config: DatabaseConfigType,
-        sql_script: str,
-    ) -> list[ResultSet]:
+    def execute_sql_script_raw_connection( self, database_config: DatabaseConfigType, sql_script: str) -> list[ResultSet]:
         """
         Execute SQL through the underlying DB-API connection.
 
@@ -488,10 +379,7 @@ class DatabaseOperations:
                     rows = cursor.fetchall()
 
                     result_sets.append(
-                        self.extract_result_data(
-                            rows,
-                            cursor.description,
-                        )
+                        self.extract_result_data(rows, cursor.description, sql_script)
                     )
 
                 if not cursor.nextset():
@@ -505,10 +393,7 @@ class DatabaseOperations:
         return result_sets
 
     @staticmethod
-    def extract_result_data(
-        result_set: Any,
-        description: Any,
-    ) -> ResultSet:
+    def extract_result_data(result_set: Any, description: Any, query: str) -> ResultSet:
         """Convert DB-API result data into a ResultSet."""
 
         columns = [
@@ -529,6 +414,7 @@ class DatabaseOperations:
             data=list(result_set or []),
             columns=columns,
             types=types,
+            query=query
         )
 
     # ------------------------------------------------------------------
@@ -538,10 +424,5 @@ class DatabaseOperations:
     def __enter__(self) -> DatabaseOperations:
         return self
 
-    def __exit__(
-        self,
-        exc_type: Any,
-        exc_value: Any,
-        traceback_value: Any,
-    ) -> None:
+    def __exit__( self, exc_type: Any, exc_value: Any, traceback_value: Any) -> None:
         self.close()

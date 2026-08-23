@@ -19,50 +19,19 @@ def get_current_timestamp() -> str:
 class CSharpObjectGenerator:
     """Generate C# object initialisation statements from database results."""
 
-    _INTEGER_TYPES = (
-        "INTEGER",
-        "INT",
-        "SMALLINT",
-        "TINYINT",
-    )
+    _INTEGER_TYPES = ("INTEGER", "INT", "SMALLINT", "TINYINT")
 
-    _LONG_TYPES = (
-        "BIGINT",
-    )
+    _LONG_TYPES = ("BIGINT")
 
-    _DECIMAL_TYPES = (
-        "DECIMAL",
-        "FLOAT",
-        "REAL",
-        "MONEY",
-    )
+    _DECIMAL_TYPES = ("DECIMAL", "FLOAT", "REAL", "MONEY")
 
-    _STRING_TYPES = (
-        "TEXT",
-        "NVARCHAR",
-        "VARCHAR",
-        "NCHAR",
-        "CHAR",
-    )
+    _STRING_TYPES = ("TEXT", "NVARCHAR", "VARCHAR" "NCHAR", "CHAR")
 
-    _DATETIME_TYPES = (
-        "DATETIME",
-        "DATE",
-        "TIMESTAMP",
-        "TIME",
-    )
+    _DATETIME_TYPES = ("DATETIME", "DATE", "TIMESTAMP", "TIME")
 
-    _BOOL_TYPES = (
-        "BOOLEAN",
-        "BIT",
-    )
+    _BOOL_TYPES = ("BOOLEAN", "BIT")
 
-    def create_object_statement(
-        self,
-        database_name: str,
-        table_name: str,
-        table_data: ResultSet,
-    ) -> str:
+    def create_object_statement(self, database_name: str, table_name: str, table_data: ResultSet) -> str:
         """Generate C# object initialisation statements."""
         try:
             columns = table_data["columns"]
@@ -75,13 +44,7 @@ class CSharpObjectGenerator:
             ]
 
             for row_data in rows:
-                output.append(
-                    self._format_row(
-                        object_name,
-                        row_data,
-                        columns,
-                    )
-                )
+                output.append(self._format_row(object_name, row_data, columns) )
 
             output.append(");  \n\n")
             output.append(get_current_timestamp())
@@ -94,21 +57,14 @@ class CSharpObjectGenerator:
             )
             raise
 
-    def _format_row(
-        self,
-        object_name: str,
-        row_data: list[Any],
-        columns: list[TableColumn],
-    ) -> str:
+    def _format_row(self, object_name: str, row_data: list[Any], columns: list[TableColumn]) -> str:
         """Format a single database row as a C# object."""
         properties = [
             self._format_property(row_data[index], column)
             for index, column in enumerate(columns)
         ]
 
-        formatted_properties = self._format_properties(
-            properties
-        )
+        formatted_properties = self._format_properties(properties)
 
         return (
             f"    {object_name}.Add(new {object_name}Row {{\n"
@@ -116,25 +72,15 @@ class CSharpObjectGenerator:
             f"    }}"
         )
 
-    def _format_property(
-        self,
-        row_value: Any,
-        column: TableColumn,
-    ) -> str:
+    def _format_property(self, row_value: Any, column: TableColumn) -> str:
         """Format a single C# property assignment."""
         column_name = self.format_name(column.name)
-        value = self.format_row_data_type_with_column(
-            row_value,
-            column,
-        )
+        value = self.format_row_data_type_with_column(row_value, column)
 
         return f"{column_name} = {value}"
 
     @staticmethod
-    def _format_properties(
-        properties: list[str],
-        properties_per_line: int = 5,
-    ) -> str:
+    def _format_properties(properties: list[str], properties_per_line: int = 5) -> str:
         """Format properties with a configurable number per line."""
         lines: list[str] = []
         current_line: list[str] = []
@@ -151,11 +97,7 @@ class CSharpObjectGenerator:
 
         return "\n".join(lines)
 
-    def format_row_data_type_with_column(
-        self,
-        row_data: Any,
-        column_data: TableColumn,
-    ) -> str:
+    def format_row_data_type_with_column(self, row_data: Any, column_data: TableColumn) -> str:
         """Convert a database value into a C# representation."""
         if row_data is None:
             return "null"

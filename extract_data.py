@@ -35,62 +35,35 @@ class DataExtractor:
             return
 
         table_info = (
-            self.database_operations.get_table_meta_data_simple_string(
-                db_config,
-                table_name,
-            )
+            self.database_operations.get_table_meta_data_simple_string(db_config, table_name)
         )
 
-        has_relationships = self.sql_operations.print_table_info(
-            table_name,
-            table_info,
-        )
+        has_relationships = self.sql_operations.print_table_info(table_name, table_info)
 
-        where_clause = input(
-            f"Where clause for table {table_name} "
-            "(not including WHERE keyword)? "
-        )
+        where_clause = input(f"Where clause for table {table_name} "
+            "(not including WHERE keyword)? ")
 
-        include_relationships = self._should_include_relationships(
-            has_relationships,
-            where_clause,
-        )
+        include_relationships = self._should_include_relationships(has_relationships, where_clause)
 
         selected_option = self.user_options.get_script_output_options()
 
         if selected_option == ABORT:
             return
 
-        self.sql_operations.extract_table_data(
-            str(DEFAULT_OUTPUT_FILE),
-            db_config,
-            table_name,
-            where_clause,
-            selected_option,
-            include_relationships,
-            [],
-        )
+        self.sql_operations.extract_table_data(str(DEFAULT_OUTPUT_FILE), db_config,
+            table_name, where_clause, selected_option, include_relationships, [])
 
     def _select_table(self, db_config) -> str | None:
         """Prompt the user until a valid table is selected."""
         while True:
-            search_term = input(
-                "Enter search term for database table name? "
-            )
+            search_term = input("Enter search term for database table name? ")
 
-            table_name = self.user_options.search_table_name(
-                db_config,
-                search_term,
-            )
+            table_name = self.user_options.search_table_name(db_config, search_term)
 
             if table_name != SEARCH_AGAIN:
                 return table_name
 
-    def _should_include_relationships(
-        self,
-        has_relationships: bool,
-        where_clause: str,
-    ) -> bool:
+    def _should_include_relationships(self, has_relationships: bool, where_clause: str) -> bool:
         """Ask whether related table data should be included."""
         if not has_relationships or not where_clause:
             return False
@@ -114,15 +87,8 @@ class DataExtractor:
             if option == EXTRACT_ANOTHER:
                 self.extract_interactively()
 
-    def extract_from_command_line(
-        self,
-        db_name: str,
-        table_name: str,
-        where_clause: str,
-        output_option: str,
-        include_relationships: bool,
-        output_file: Path,
-    ) -> None:
+    def extract_from_command_line(self, db_name: str, table_name: str,
+        where_clause: str, output_option: str, include_relationships: bool, output_file: Path) -> None:
         """Extract table data using command-line arguments."""
         db_config = self.user_options.get_database_config_via_name(
             db_name
@@ -131,27 +97,14 @@ class DataExtractor:
         if not self._validate_table(db_config, table_name):
             return
 
-        self.sql_operations.extract_table_data(
-            str(output_file),
-            db_config,
-            table_name,
-            where_clause,
-            output_option,
-            include_relationships,
-            [],
-        )
+        self.sql_operations.extract_table_data(str(output_file), db_config, table_name,
+            where_clause, output_option, include_relationships,[])
 
         print(f"Output file: {output_file}")
 
-    def show_table_info(
-        self,
-        db_name: str,
-        table_name: str,
-    ) -> None:
+    def show_table_info(self, db_name: str, table_name: str) -> None:
         """Display metadata for a database table."""
-        db_config = self.user_options.get_database_config_via_name(
-            db_name
-        )
+        db_config = self.user_options.get_database_config_via_name(db_name)
 
         table_name = self._add_default_schema(table_name)
 
@@ -159,16 +112,10 @@ class DataExtractor:
             return
 
         table_info = (
-            self.database_operations.get_table_meta_data_simple_string(
-                db_config,
-                table_name,
-            )
+            self.database_operations.get_table_meta_data_simple_string(db_config, table_name)
         )
 
-        self.sql_operations.print_table_info(
-            table_name,
-            table_info,
-        )
+        self.sql_operations.print_table_info(table_name,  table_info)
 
     def _validate_table(self, db_config, table_name: str) -> bool:
         """Validate that a database table exists."""
@@ -187,73 +134,32 @@ class DataExtractor:
 
 
 def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Extract database table data or display table information."
-    )
+    parser = argparse.ArgumentParser(description="Extract database table data or display table information.")
 
-    subparsers = parser.add_subparsers(
-        dest="command",
-        required=False,
-    )
+    subparsers = parser.add_subparsers(dest="command", required=False)
 
-    extract_parser = subparsers.add_parser(
-        "extract",
-        help="Extract data from a database table.",
-    )
+    extract_parser = subparsers.add_parser("extract", help="Extract data from a database table.")
 
-    extract_parser.add_argument(
-        "database",
-        help="Database name.",
-    )
+    extract_parser.add_argument("database", help="Database name.")
 
-    extract_parser.add_argument(
-        "table",
-        help="Table name, including schema.",
-    )
+    extract_parser.add_argument("table", help="Table name, including schema.")
 
-    extract_parser.add_argument(
-        "where",
-        help="WHERE clause without the WHERE keyword.",
-    )
+    extract_parser.add_argument("where", help="WHERE clause without the WHERE keyword.")
 
-    extract_parser.add_argument(
-        "output_option",
-        choices=[
-            "insert",
-            "update",
-            "insert and update",
-        ],
-        help="Type of SQL script to generate.",
-    )
+    extract_parser.add_argument("output_option",  choices=["insert", "update", "insert and update"],
+        help="Type of SQL script to generate.")
 
-    extract_parser.add_argument(
-        "include_relationships",
-        type=parse_boolean,
-        help="Include related table data: True or False.",
-    )
+    extract_parser.add_argument("include_relationships",  type=parse_boolean,
+        help="Include related table data: True or False.")
 
-    extract_parser.add_argument(
-        "-o",
-        "--output",
-        type=Path,
-        default=DEFAULT_OUTPUT_FILE,
-        help=f"Output file. Default: {DEFAULT_OUTPUT_FILE}",
-    )
+    extract_parser.add_argument( "-o", "--output", type=Path,
+        default=DEFAULT_OUTPUT_FILE, help=f"Output file. Default: {DEFAULT_OUTPUT_FILE}")
 
-    info_parser = subparsers.add_parser(
-        "info",
-        help="Show table information.",
-    )
+    info_parser = subparsers.add_parser("info", help="Show table information.")
 
-    info_parser.add_argument(
-        "database",
-        help="Database name.",
-    )
+    info_parser.add_argument("database", help="Database name.")
 
-    info_parser.add_argument(
-        "table",
-        help="Table name.",
-    )
+    info_parser.add_argument("table", help="Table name.")
 
     return parser
 
@@ -268,8 +174,7 @@ def parse_boolean(value: str) -> bool:
     if normalized in {"false", "no", "0"}:
         return False
 
-    raise argparse.ArgumentTypeError(
-        f"Invalid boolean value: {value}. "
+    raise argparse.ArgumentTypeError(f"Invalid boolean value: {value}. "
         "Use True/False, Yes/No, or 1/0."
     )
 
@@ -284,22 +189,13 @@ def main() -> None:
         return
 
     if args.command == "extract":
-        extractor.extract_from_command_line(
-            db_name=args.database,
-            table_name=args.table,
-            where_clause=args.where,
-            output_option=args.output_option,
-            include_relationships=args.include_relationships,
-            output_file=args.output,
-        )
+        extractor.extract_from_command_line(db_name=args.database, table_name=args.table, where_clause=args.where,
+            output_option=args.output_option, include_relationships=args.include_relationships,
+            output_file=args.output)
         return
 
     if args.command == "info":
-        extractor.show_table_info(
-            db_name=args.database,
-            table_name=args.table,
-        )
-
+        extractor.show_table_info(db_name=args.database, table_name=args.table)
 
 if __name__ == "__main__":
     main()
