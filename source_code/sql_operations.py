@@ -1,11 +1,14 @@
-from sqlalchemy import ForeignKey,URL
-from tabulate import tabulate
+import csv
+import io
 import traceback
+from typing import Any
+
+from sqlalchemy import ForeignKey, URL
+from tabulate import tabulate
+
 from source_code.file_operations import FileOperations
 from source_code.script_generator import ScriptGenerator
-from source_code.database_operations import DatabaseOperations
-from source_code.database_operations import TableColumn
-from source_code.database_operations import ResultSet
+from source_code.database_operations import DatabaseOperations, TableColumn, ResultSet
 from source_code.csharp_object_generator import CSharpObjectGenerator
 from source_code.csharp_object_generatorV2 import CSharpObjectGeneratorV2
 
@@ -15,354 +18,295 @@ script_generator = ScriptGenerator()
 csharp_generator = CSharpObjectGenerator()
 csharp_generatorV2 = CSharpObjectGeneratorV2()
 
+OUTPUT_FILE = 'output\\execution.txt'
+
+# output_option values that trigger each generator (was a long chain of `or` comparisons)
+UPDATE_OPTIONS = {'update', 'update and insert', 'update and insertAdd', 'update and insertPk'}
+INSERT_ADD_OPTIONS = {'insertAdd', 'update and insertAdd'}
+INSERT_PK_OPTIONS = {'insertPk', 'update and insertPk'}
+INSERT_OPTIONS = {'insert', 'update and insert'}
+
+
 class SqlOperations:
-    type RelationQuery = list[dict[str, str] | None]
-    type RelationQueryItem = dict[str, str] | None
+    type RelationQuery = list[dict[str, str]]
+    type RelationQueryItem = dict[str, str]
 
     def print_table_info(self, table_name: str, table_info: TableColumn) -> bool:
-        output_file='output\\execution.txt'
         has_foreign_keys = False
         table_column_description = []
-        count_columns = 0
+
         for column_index, table_columns in enumerate(table_info):
             key_marker = ''
             if table_columns.primary_key:
                 key_marker += '+'
             if table_columns.autoincrement:
                 key_marker += '*'
-            foreign_keys_str = ''
-            foreign_keys = table_columns.foreign_keys
-            if foreign_keys:
-                foreign_keys_str = self.format_foreign_keys(foreign_keys)
-                has_foreign_keys = True
-            columns_info = [f"{column_index} {key_marker}", table_columns.name,
-                            self.format_table_type(table_columns.type), foreign_keys_str, ]
 
-            table_column_description.append(columns_info)
-            count_columns += 1
+            foreign_keys_str = ''
+            if table_columns.foreign_keys:
+                foreign_keys_str = self.format_foreign_keys(table_columns.foreign_keys)
+                has_foreign_keys = True
+
+            table_column_description.append([
+                f"{column_index} {key_marker}",
+                table_columns.name,
+                self.format_table_type(table_columns.type),
+                foreign_keys_str,
+            ])
+
+        count_columns = len(table_column_description)
         headers = ['Index', 'Name', 'Type', 'Foreign Keys']
-        print('(+ = primary key, * = autoincrement)')
+        legend = '(+ = primary key, * = autoincrement)'
+
+        print(legend)
         print(tabulate(table_column_description, headers, tablefmt="simple_grid"))
         print(f'Table : {table_name} has {count_columns} columns')
-        file_operations.write_to_file(output_file, f'\nTable : {table_name}\n(+ = primary key, * = autoincrement)\n')
-        with open(output_file, 'a') as f:
-            f.write(tabulate(table_column_description, headers, tablefmt="simple"))
-        file_operations.write_to_file(output_file, f'\nTable : {table_name} has {count_columns} columns\n')
+
+        # Single write through the existing file-write abstraction instead of
+        # file_operations.write_to_file(...) followed by a raw open(..., 'a').
+        report = (
+            f'\nTable : {table_name}\n{legend}\n'
+            f'{tabulate(table_column_description, headers, tablefmt="simple")}'
+            f'\nTable : {table_name} has {count_columns} columns\n'
+        )
+        file_operations.write_to_file(OUTPUT_FILE, report)
+
         return has_foreign_keys
 
     def format_table_type(self, table_type: str) -> str:
         return str(table_type).replace(" COLLATE ", " COLLATE \n")
 
     def format_foreign_keys(self, foreign_keys: set[ForeignKey]) -> list[str]:
-        data_output = []
-        for foreign_key in foreign_keys:
-            key_info = self.format_foreign_key(foreign_key)
-            data_output.append(key_info)
-        return data_output
+        return [self.format_foreign_key(fk) for fk in foreign_keys]
 
     @staticmethod
     def format_foreign_key(foreign_key: ForeignKey) -> str:
-        fk_str = str(foreign_key)
-        cleaned_str = fk_str.replace('ForeignKey(\'', '').replace('\')', '')
-        return cleaned_str
+        return str(foreign_key).replace("ForeignKey('", '').replace("')", '')
 
     def generate_selects_from_relationships(self, table_info: ResultSet) -> RelationQuery | None:
-        has_relations = self.table_has_relations(table_info)
-        if not has_relations:
-            return
+        if not self.table_has_relations(table_info):
+            return None
         relationships = self.extract_relationship_data(table_info)
-        sql_selects = self.generate_sql_from_relations(relationships)
-        return sql_selects
+        return self.generate_sql_from_relations(relationships)
 
-    def extract_relationship_data(self, table_info: ResultSet) -> RelationQuery:
+    @staticmethod
+    def extract_relationship_data(table_info: ResultSet) -> list[list]:
         relationship_data = []
-        for column_index, columns in enumerate(table_info['columns']):
-            if columns.foreign_keys:
-                for row_index, row in enumerate(table_info['data']):
-                    fk_id = row[column_index]
-                    for fk_index, foreign_key in enumerate(columns.foreign_keys):
-                        new_rel = [fk_id, self.format_foreign_key(foreign_key)]
-                        relationship_data.append(new_rel)
+        for column_index, column in enumerate(table_info['columns']):
+            if not column.foreign_keys:
+                continue
+            for row in table_info['data']:
+                fk_id = row[column_index]
+                for foreign_key in column.foreign_keys:
+                    relationship_data.append([fk_id, SqlOperations.format_foreign_key(foreign_key)])
         return relationship_data
 
     @staticmethod
     def table_has_relations(table_info: ResultSet) -> bool:
-        table_columns = table_info['columns']
-        has_relations = False
-        for columns in table_columns:
-            if columns.foreign_keys:
-                has_relations = True
-                break
-        return has_relations
+        return any(column.foreign_keys for column in table_info['columns'])
 
-    def generate_sql_from_relations(self, relationships_data: TableColumn) -> RelationQuery:
-        output_selects = []
-        for relationship in relationships_data:
-            id_value = str(relationship[0])
-            if id_value and id_value != 'None':
-                split_table = relationship[1].split('.')
-                if not id_value.isnumeric():
-                    id_value = f"'{id_value}'"
-                select_data = {'schema': split_table[0], 'table': split_table[1],
-                               'where': f"{split_table[2]} = {id_value}"}
-                self.add_unique_relationships(output_selects, select_data)
+    def generate_sql_from_relations(self, relationships_data: list[list]) -> RelationQuery:
+        output_selects: SqlOperations.RelationQuery = []
+        for fk_id, foreign_key_str in relationships_data:
+            id_value = str(fk_id)
+            if not id_value or id_value == 'None':
+                continue
+            schema, table, key_column = foreign_key_str.split('.')
+            if not id_value.isnumeric():
+                id_value = f"'{id_value}'"
+            select_data = {'schema': schema, 'table': table, 'where': f"{key_column} = {id_value}"}
+            self.add_unique_relationships(output_selects, select_data)
         return output_selects
 
-    def add_unique_relationships(self, old_list: RelationQuery, new_list_item: RelationQueryItem) -> None:
-        in_found_in_list = self.is_unique_relationships(old_list, new_list_item)
-        if not in_found_in_list:
-            old_list.append(new_list_item)
+    def add_unique_relationships(self, existing: RelationQuery, candidate: RelationQueryItem) -> None:
+        if not self.is_unique_relationships(existing, candidate):
+            existing.append(candidate)
 
     @staticmethod
-    def is_unique_relationships(old_list: RelationQuery, new_list_item: RelationQueryItem) -> bool:
-        in_found_in_list = False
-        for current_select in old_list:
-            if current_select['schema'] == new_list_item['schema']:
-                if current_select['table'] == new_list_item['table']:
-                    if current_select['where'] == new_list_item['where']:
-                        in_found_in_list = True
-                        break
-        return in_found_in_list
+    def is_unique_relationships(existing: RelationQuery, candidate: RelationQueryItem) -> bool:
+        return any(
+            item['schema'] == candidate['schema']
+            and item['table'] == candidate['table']
+            and item['where'] == candidate['where']
+            for item in existing
+        )
 
-    def extract_table_data(self, output_path_file: str, database_config: dict[str, str|URL], table_name: str, where_clause: str,
-                           output_option: str, include_relationships: bool,
-                           previous_relationship_selects: RelationQuery):
+    def extract_table_data(self, output_path_file: str, database_config: dict[str, str | URL], table_name: str,
+                           where_clause: str, output_option: str, include_relationships: bool,
+                           previous_relationship_selects: RelationQuery) -> RelationQuery:
         row_data = databaseSelector.get_table_data(database_config, table_name, where_clause)
 
         if len(row_data['data']) == 0:
             print('No data found')
-            return
+            return previous_relationship_selects
 
-        previous_relationship_selects_output = []
-        if include_relationships:
-            if where_clause:
-                current_relationship_selects = self.generate_selects_from_relationships(row_data)
-                #print('Before current_relationship_selects : ', current_relationship_selects)
-                current_relationship_selects = self.combine_relationships(current_relationship_selects)
-                #print('After current_relationship_selects : ', current_relationship_selects)
-                if current_relationship_selects:
-                    unique_relationship_selects = []
+        if include_relationships and where_clause:
+            current_relationship_selects = self.generate_selects_from_relationships(row_data)
+            current_relationship_selects = self.combine_relationships(current_relationship_selects)
 
-                    for current_relationship in current_relationship_selects:
-                        found_in_previous_relationships = self.is_unique_relationships(previous_relationship_selects,
-                                                                                       current_relationship)
-                        if not found_in_previous_relationships:
-                            unique_relationship_selects.append(current_relationship)
+            if current_relationship_selects:
+                unique_relationship_selects = [
+                    relationship for relationship in current_relationship_selects
+                    if not self.is_unique_relationships(previous_relationship_selects, relationship)
+                ]
+                previous_relationship_selects.extend(unique_relationship_selects)
 
-                    previous_relationship_selects.extend(unique_relationship_selects)
-                    for current_relationship in unique_relationship_selects:
-                        previous_relationship_selects_output = self.extract_table_data(output_path_file,
-                                   database_config,
-                                   f"{current_relationship['schema']}.{current_relationship['table']}",
-                                   current_relationship['where'],
-                                   output_option,
-                                   include_relationships,
-                                   previous_relationship_selects)
+                for relationship in unique_relationship_selects:
+                    self.extract_table_data(
+                        output_path_file, database_config,
+                        f"{relationship['schema']}.{relationship['table']}",
+                        relationship['where'], output_option, include_relationships,
+                        previous_relationship_selects,
+                    )
 
-        self.generate_output_data(database_config['db_name'], table_name, where_clause, row_data, output_option, output_path_file)
-        return previous_relationship_selects_output
+        self.generate_output_data(database_config['db_name'], table_name, where_clause, row_data,
+                                   output_option, output_path_file)
+        return previous_relationship_selects
 
     @staticmethod
-    def combine_relationships(current_relationship_selects: RelationQuery | None) -> RelationQuery | None:
-        if current_relationship_selects is None:
-            return None
-        if len(current_relationship_selects) == 1:
-            return current_relationship_selects
+    def combine_relationships(relationships: RelationQuery | None) -> RelationQuery | None:
+        """Merge relationships that target the same (schema, table) into one WHERE clause,
+        ANDing together clauses that key off different columns.
 
-        new_relationship_selects_output = []
-        cp_current_relationship_selects01 = current_relationship_selects.copy()
-        length_of_relationships = len(cp_current_relationship_selects01)
-        while length_of_relationships > 0:
-            for index01, current_relationship01 in enumerate(cp_current_relationship_selects01):
-                new_where_clause = current_relationship01['where']
-                table_match_found = False
-                for index02, current_relationship02 in enumerate(cp_current_relationship_selects01):
-                    if index01 != index02:
-                        if current_relationship01['schema'] == current_relationship02['schema'] and current_relationship01['table'] == current_relationship02['table']:
-                            key_01 = current_relationship01['where'].split('=')[0].strip()
-                            key_02 = current_relationship02['where'].split('=')[0].strip()
-                            if key_01 != key_02:
-                                table_match_found = True
-                                if new_where_clause != '':
-                                    new_where_clause +=' AND '
-                                new_where_clause += current_relationship02['where']
-                                cp_current_relationship_selects01.remove(current_relationship02)
-                if table_match_found:
-                    new_relationship_selects_output.append({
-                        'schema': current_relationship01['schema'],
-                        'table': current_relationship01['table'],
-                        'where': new_where_clause
-                    })
-                else:
-                    new_relationship_selects_output.append(current_relationship01)
-                cp_current_relationship_selects01.remove(current_relationship01)
-                length_of_relationships = len(cp_current_relationship_selects01)
+        Rewritten: the original version removed items from a list while iterating over
+        that same list (`cp_current_relationship_selects01.remove(...)` inside a loop
+        enumerating it), which can skip elements depending on ordering.
+        """
+        if not relationships:
+            return relationships
 
-        return new_relationship_selects_output
+        grouped: dict[tuple[str, str], dict[str, str]] = {}
+        for relationship in relationships:
+            table_key = (relationship['schema'], relationship['table'])
+            where_key = relationship['where'].split('=')[0].strip()
+            # first clause for a given key column wins; distinct key columns get ANDed
+            grouped.setdefault(table_key, {}).setdefault(where_key, relationship['where'])
+
+        return [
+            {'schema': schema, 'table': table, 'where': ' AND '.join(wheres.values())}
+            for (schema, table), wheres in grouped.items()
+        ]
 
     @staticmethod
-    def generate_output_data(db_name: str, table_name: str, where_clause: str,
-                             row_data: ResultSet,
+    def generate_output_data(db_name: str, table_name: str, where_clause: str, row_data: ResultSet,
                              output_option: str, output_path_file: str) -> None:
         primary_columns = databaseSelector.get_primary_columns(row_data)
-
         print(f'Extracting : {db_name}.{table_name} WHERE {where_clause}')
-        if output_option == 'update' or output_option == 'update and insert' or output_option == 'update and insertAdd' or output_option == 'update and insertPk':
-            print(script_generator.time_stamp_message("Start update"))
-            update_statement = script_generator.create_update_statement(db_name, table_name, row_data, primary_columns)
-            file_operations.write_to_file(output_path_file, update_statement)
-            print(script_generator.time_stamp_message("End update"))
 
-        if output_option == 'insertAdd' or output_option == 'update and insertAdd':
-            print(script_generator.time_stamp_message("Start insertAdd"))
-            insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data, True)
-            file_operations.write_to_file(output_path_file, insert_statement)
-            print(script_generator.time_stamp_message("End insertAdd"))
+        def run(label: str, generate) -> None:
+            print(script_generator.time_stamp_message(f"Start {label}"))
+            file_operations.write_to_file(output_path_file, generate())
+            print(script_generator.time_stamp_message(f"End {label}"))
 
-        if output_option == 'insertPk' or output_option == 'update and insertPk':
-            print(script_generator.time_stamp_message("Start insertPk"))
-            insert_statement = script_generator.create_insert_pk_statement(db_name, table_name, row_data, primary_columns)
-            file_operations.write_to_file(output_path_file, insert_statement)
-            print(script_generator.time_stamp_message("End insertPk"))
+        if output_option in UPDATE_OPTIONS:
+            run('update', lambda: script_generator.create_update_statement(
+                db_name, table_name, row_data, primary_columns))
 
-        if output_option == 'insert' or output_option == 'update and insert':
-            print(script_generator.time_stamp_message("Start insert"))
-            insert_statement = script_generator.create_insert_statement(db_name, table_name, row_data, False)
-            file_operations.write_to_file(output_path_file, insert_statement)
-            print(script_generator.time_stamp_message("End insert"))
+        if output_option in INSERT_ADD_OPTIONS:
+            run('insertAdd', lambda: script_generator.create_insert_statement(
+                db_name, table_name, row_data, True))
+
+        if output_option in INSERT_PK_OPTIONS:
+            run('insertPk', lambda: script_generator.create_insert_pk_statement(
+                db_name, table_name, row_data, primary_columns))
+
+        if output_option in INSERT_OPTIONS:
+            run('insert', lambda: script_generator.create_insert_statement(
+                db_name, table_name, row_data, False))
 
         if output_option == 'csharp':
-            print(script_generator.time_stamp_message("Start csharp"))
-            csharp_statement = csharp_generator.create_object_statement(db_name, table_name, row_data)
-            file_operations.write_to_file(output_path_file, csharp_statement)
-            print(script_generator.time_stamp_message("End csharp"))
+            run('csharp', lambda: csharp_generator.create_object_statement(db_name, table_name, row_data))
 
         if output_option == 'csharpV2':
-            print(script_generator.time_stamp_message("Start csharpV2"))
-            csharp_statement = csharp_generatorV2.create_object_statement(db_name, table_name, row_data)
-            file_operations.write_to_file(output_path_file, csharp_statement)
-            print(script_generator.time_stamp_message("End csharpV2"))
+            run('csharpV2', lambda: csharp_generatorV2.create_object_statement(db_name, table_name, row_data))
 
-
-    def check_database_table_names(self, db_config: dict[str, str|URL], table_name: str) -> bool:
+    def check_database_table_names(self, db_config: dict[str, str | URL], table_name: str) -> bool:
         try:
-            data_is_ok = True
             if db_config is None:
-                data_is_ok = False
                 print(f"Database '{db_config}' not found\nDatabase names :")
-            else:
-                table_name_parts = table_name.split('.')
-                table_name_part = table_name_parts[0]
-                if len(table_name_parts) == 2:
-                    table_name_part = table_name_parts[1]
-                schema_table_name = databaseSelector.search_table_name(db_config, table_name_part)
-                search_name = self.format_table_names(table_name)
-                if search_name not in str(schema_table_name):
-                    data_is_ok = False
-                    print(f"Table '{table_name}' not found")
-                    schema_table_name = databaseSelector.search_table_name(db_config, table_name_part[:3])
-                    if len(schema_table_name) > 0:
-                        print("Table/s with similar name")
-                        print(schema_table_name)
-            return data_is_ok
+                return False
+
+            table_name_parts = table_name.split('.')
+            table_name_part = table_name_parts[1] if len(table_name_parts) == 2 else table_name_parts[0]
+
+            schema_table_name = databaseSelector.search_table_name(db_config, table_name_part)
+            search_name = self.format_table_names(table_name)
+            if search_name in str(schema_table_name):
+                return True
+
+            print(f"Table '{table_name}' not found")
+            similar_tables = databaseSelector.search_table_name(db_config, table_name_part[:3])
+            if similar_tables:
+                print("Table/s with similar name")
+                print(similar_tables)
+            return False
 
         except Exception as exc:
             self.handle_general_exceptions('check_database_table_names', exc)
+            return False
 
     @staticmethod
     def format_table_names(table_name: str) -> str:
-        output_table_name = table_name
-        found_char = table_name.find("[")
-        if found_char == -1:
-            table_name_parts = table_name.split('.')
-            output_table_name = ''
-            for name_part in table_name_parts:
-                if output_table_name:
-                    output_table_name += '.'
-                output_table_name += f"[{name_part}]"
-        return output_table_name
+        if '[' in table_name:
+            return table_name
+        return '.'.join(f'[{part}]' for part in table_name.split('.'))
 
     @staticmethod
-    def show_table_result_rows(result_set_index: int,
-                           data_rows: dict[str, list[any]], show_headers) -> str:
-        row_no = 1
-        no_of_records = len(data_rows['data'])
-        if no_of_records == 0:
+    def show_table_result_rows(result_set_index: int, data_rows: dict[str, list[Any]], show_headers: bool) -> str:
+        rows = data_rows['data']
+        if not rows:
             return ''
-        data_output = ''
+
+        lines = []
         if show_headers:
-            data_output += 'Columns \r\n'
-            data_output += str(data_rows['columns']) + ' \r\n'
-            data_output += str(data_rows['types']) + ' \r\n'
-        data_output += 'Rows \r\n'
-        for data_row in data_rows['data']:
+            lines.append('Columns \r\n')
+            lines.append(f"{data_rows['columns']} \r\n")
+            lines.append(f"{data_rows['types']} \r\n")
+        lines.append('Rows \r\n')
+
+        for row_no, data_row in enumerate(rows, start=1):
             if show_headers:
-                data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
-            data_output += str(data_row) + ' \r\n'
-            row_no += 1
-        data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'
-        return data_output
+                lines.append(f'---- Result Set {result_set_index} Row {row_no} \r\n')
+            lines.append(f'{data_row} \r\n')
+
+        lines.append(f'Result Set {result_set_index}, No. Of Rows : {len(rows)} \r\n')
+        return ''.join(lines)
 
     @staticmethod
     def show_table_result_columns(result_set_index: int, script_name: str,
-                           data_rows: dict[str, list[any]], show_headers) -> str:
-        row_no = 1
-        no_of_records = len(data_rows.data)
-        if no_of_records == 0:
+                                   data_rows: ResultSet, show_headers: bool) -> str:
+        if not data_rows.data:
             return ''
-        data_output = ''
-        max_len_column = 0
-        data_row = data_rows.data[0]
-        for colindex, column in enumerate(data_row):
-            current_len = len(data_rows.columns[colindex])
-            if max_len_column < current_len:
-                max_len_column = current_len
 
-        max_len_type = 0
-        for type_index, type_name in enumerate(data_row):
-            current_len = len(data_rows.types[type_index])
-            if max_len_type < current_len:
-                max_len_type = current_len
-        data_output += f'---- Start {script_name} \r\n'
-        for data_row in data_rows.data:
-            data_output += '---- Result Set ' + str(result_set_index) + ' Row ' + str(row_no) + ' \r\n'
-            for colindex, column in enumerate(data_row):
-                column_name = str(data_rows.columns[colindex])
-                extended_column_name = column_name.ljust(max_len_column, ' ')
-                type_name = str(data_rows.types[colindex])
-                extended_type_name = type_name.ljust(max_len_type, ' ')
-                data_output += extended_column_name + '  :  ' + str(extended_type_name) + '  :  ' + str(column) + ' \r\n'
-            row_no += 1
-        data_output += f'---- End {script_name}  \r\n'
-        data_output += 'Result Set ' + str(result_set_index) + ', No. Of Rows : ' + str(no_of_records) + ' \r\n'
-        return data_output
+        max_len_column = max(len(str(column)) for column in data_rows.columns)
+        max_len_type = max(len(str(type_name)) for type_name in data_rows.types)
+
+        lines = [f'---- Start {script_name} \r\n']
+        for row_no, data_row in enumerate(data_rows.data, start=1):
+            lines.append(f'---- Result Set {result_set_index} Row {row_no} \r\n')
+            for col_index, value in enumerate(data_row):
+                column_name = str(data_rows.columns[col_index]).ljust(max_len_column)
+                type_name = str(data_rows.types[col_index]).ljust(max_len_type)
+                lines.append(f'{column_name}  :  {type_name}  :  {value} \r\n')
+        lines.append(f'---- End {script_name}  \r\n')
+        lines.append(f'Result Set {result_set_index}, No. Of Rows : {len(data_rows.data)} \r\n')
+        return ''.join(lines)
 
     @staticmethod
-    def show_table_result_csv(data_rows: dict[str, list[any]]) -> str:
-        row_no = 1
-        no_of_records = len(data_rows.data)
-        if no_of_records == 0:
+    def show_table_result_csv(data_rows: ResultSet) -> str:
+        # Was hand-built with str(...) + ',' .join-style concatenation, which corrupts
+        # any field containing a comma, quote, or newline. csv.writer quotes correctly.
+        if not data_rows.data:
             return ''
-        data_output = ''
-        for column_index, column_data in enumerate(data_rows.columns):
-            if column_index > 0:
-                data_output += ','
-            data_output += str(column_data)
-
-        data_output += f'\r\n'
-        for column_index, column_data in enumerate(data_rows.data):
-            for row_index, row_data in enumerate(column_data):
-                if row_index > 0:
-                    data_output += ','
-                data_output += str(row_data)
-            row_no += 1
-            data_output += f'\r\n'
-        return data_output
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, lineterminator='\r\n')
+        writer.writerow(data_rows.columns)
+        writer.writerows(data_rows.data)
+        return buffer.getvalue()
 
     @staticmethod
-    def handle_general_exceptions(method_name: str, exception: Exception):
+    def handle_general_exceptions(method_name: str, exception: Exception) -> None:
         print(f'SqlOperations Method : {method_name}')
         print('ex : ', exception)
         tb = traceback.TracebackException.from_exception(exception)
         print(''.join(tb.stack.format()))
-

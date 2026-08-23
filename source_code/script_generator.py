@@ -522,11 +522,12 @@ class ScriptGenerator:
         columns: Sequence[str],
     ) -> str:
         """Format column names for an INSERT statement."""
-
-        return ",\n".join(
-            f"        [{column}]"
-            for column in columns
-        )
+        output =" "
+        for index, column in enumerate(columns):
+            if index > 0 and index % 5 == 0:
+                output += '\n      '
+            output += f"{column}, "
+        return output
 
     @staticmethod
     def _format_values(
