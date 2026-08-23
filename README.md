@@ -34,15 +34,15 @@ If an output file is not passed as an argument, then all outputs are placed into
 
 e.g
 
-py extract_data.py AdventureWorksLT2019  SalesLT.SalesOrderHeader 'SalesOrderID = 71774' insert True
+py extract_data.py extract AdventureWorksLT2019  SalesLT.SalesOrderHeader 'SalesOrderID = 71774' insert True
  
 ### Show table info
 
-extract_data.py &lt;db name&gt; &lt;table name with schema&gt;
+extract_data.py info &lt;db name&gt; &lt;table name with schema&gt;
 
 e.g
 
-py extract_data.py AdventureWorksLT2019  SalesLT.SalesOrderHeader
+py extract_data.py info AdventureWorksLT2019  SalesLT.SalesOrderHeader
 
 The user is given help if you have typo in the database or table names in useful error responses.
  
@@ -91,6 +91,7 @@ You can select the output mode by including '--- with results columns' for colum
 
 You can use '--- with results rows no headers' to show rows format without header data output for smaller output.
 
+Virtual Environments
 python -m venv E:\git\public\MsSqlExtractorAndExecutorV2
 
 C:\Users\Your Name> python -m venv myfirstproject
@@ -98,11 +99,11 @@ C:\Users\Your Name> python -m venv myfirstproject
 cd E:\git\public\MsSqlExtractorAndExecutorV2
 
 Run this command to create a virtual environment named myfirstproject:
-C:\Users\Your Name> python -m venv myfirstproject
+C:\Users\Your Name> py -m venv myfirstproject
 py -m venv myfirstproject
 
 Activate the virtual environment:
-> myfirstproject\Scripts\activate
+> .venv\Scripts\activate
 
 from pprint import pprint
 pprint(vars(meta_data))

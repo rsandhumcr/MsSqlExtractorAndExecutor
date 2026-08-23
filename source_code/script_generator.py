@@ -522,9 +522,9 @@ class ScriptGenerator:
         columns: Sequence[str],
     ) -> str:
         """Format column names for an INSERT statement."""
-        output =" "
+        output ="      "
         for index, column in enumerate(columns):
-            if index > 0 and index % 5 == 0:
+            if index > 0 and index % ScriptGenerator._VALUES_PER_LINE == 0:
                 output += '\n      '
             output += f"{column}, "
         return output
